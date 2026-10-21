@@ -37,7 +37,7 @@
 #include <openssl/pkcs7.h>
 #include <openssl/x509.h>
 
-#include <ccan/talloc/talloc.h>
+#include "util.h"
 
 #include "idc.h"
 
@@ -132,7 +132,7 @@ static int type_set_sequence(void *ctx, ASN1_TYPE *type,
 	os = ASN1_STRING_new();
 
 	len = ASN1_item_i2d((ASN1_VALUE *)seq, NULL, it);
-	tmp = seq_data = talloc_array(ctx, uint8_t, len);
+	tmp = seq_data = mem_alloc_size(ctx, len);
 	ASN1_item_i2d((ASN1_VALUE *)seq, &tmp, it);
 
 	ASN1_STRING_set(os, seq_data, len);
@@ -197,7 +197,7 @@ int IDC_set(PKCS7 *p7, PKCS7_SIGNER_INFO *si, struct image *image)
         ASN1_OCTET_STRING_set(idc->digest->digest, sha, sizeof(sha));
 
 	len = i2d_IDC(idc, NULL);
-	tmp = buf = talloc_array(image, uint8_t, len);
+	tmp = buf = mem_alloc_size(image, len);
 	i2d_IDC(idc, &tmp);
 
 	/* Add the contentType authenticated attribute */

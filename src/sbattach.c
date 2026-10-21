@@ -49,10 +49,8 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 
-#include <ccan/talloc/talloc.h>
-#include <ccan/read_write_all/read_write_all.h>
+#include "util.h"
 
-#include "config.h"
 
 #include "image.h"
 #include "fileio.h"
@@ -137,7 +135,7 @@ static int attach_sig(struct image *image, const char *image_filename,
 				strerror(errno));
 
 out:
-	talloc_free(sigbuf);
+	mem_free(sigbuf);
 	return rc;
 }
 
@@ -265,6 +263,6 @@ int main(int argc, char **argv)
 		rc = remove_sig(image, signum, image_filename);
 
 out:
-	talloc_free(image);
+	mem_free(image);
 	return (rc == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

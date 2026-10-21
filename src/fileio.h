@@ -32,6 +32,8 @@
 #ifndef FILEIO_H
 #define FILEIO_H
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include <openssl/evp.h>
@@ -41,6 +43,8 @@ EVP_PKEY *fileio_read_pkey(const char *filename);
 EVP_PKEY *fileio_read_engine_key(const char *engine, const char *filename);
 X509 *fileio_read_cert(const char *filename);
 
+bool fileio_read_all(int fd, void *buf, size_t len);
+bool fileio_write_all(int fd, const void *buf, size_t len);
 int fileio_read_file(void *ctx, const char *filename,
 		uint8_t **out_buf, size_t *out_len);
 int fileio_read_file_noerror(void *ctx, const char *filename,

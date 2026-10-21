@@ -38,10 +38,8 @@
 #include <unistd.h>
 #include <string.h>
 
-#include <ccan/endian/endian.h>
-#include <ccan/talloc/talloc.h>
-#include <ccan/read_write_all/read_write_all.h>
-#include <ccan/build_assert/build_assert.h>
+#include <endian.h>
+#include "util.h"
 #include <openssl/sha.h>
 
 #include "fileio.h"
@@ -187,7 +185,7 @@ static void image_pecoff_update_checksum(struct image *image)
 	if (is_signed)
 		checksum += image->sigsize;
 
-	*(image->checksum) = cpu_to_le32(checksum);
+	*(image->checksum) = htole32(checksum);
 }
 
 static int image_pecoff_parse(struct image *image)
@@ -294,7 +292,7 @@ static int image_pecoff_parse(struct image *image)
 			cert_table->type == CERT_TABLE_TYPE_PKCS &&
 			cert_table->size < size) {
 		image->sigsize = image->data_dir_sigtable->size;
-		image->sigbuf = talloc_memdup(image, cert_table,
+		image->sigbuf = mem_memdup(image, cert_table,
 				image->sigsize);
 	}
 
@@ -337,9 +335,9 @@ static int image_find_regions(struct image *image)
 	image->checksum_regions = NULL;
 
 	image->n_checksum_regions = 3;
-	image->checksum_regions = talloc_zero_array(image,
-					struct region,
-					image->n_checksum_regions);
+	image->checksum_regions = mem_alloc_zero(image,
+					image->n_checksum_regions,
+					sizeof(*image->checksum_regions));
 
 	/* first region: beginning to checksum field */
 	regions = image->checksum_regions;
@@ -378,15 +376,15 @@ static int image_find_regions(struct image *image)
 			continue;
 
 		n = image->n_checksum_regions++;
-		image->checksum_regions = talloc_realloc(image,
+		image->checksum_regions = mem_resize(image,
 				image->checksum_regions,
-				struct region,
-				image->n_checksum_regions);
+				image->n_checksum_regions,
+				sizeof(*image->checksum_regions));
 		regions = image->checksum_regions;
 
 		regions[n].data = buf + file_offset;
 		regions[n].size = file_size;
-		regions[n].name = talloc_strndup(image->checksum_regions,
+		regions[n].name = mem_strndup(image->checksum_regions,
 					image->scnhdr[i].s_name, 8);
 		bytes += regions[n].size;
 
@@ -426,10 +424,10 @@ static int image_find_regions(struct image *image)
 		int n = image->n_checksum_regions++;
 		struct region *r;
 
-		image->checksum_regions = talloc_realloc(image,
+		image->checksum_regions = mem_resize(image,
 				image->checksum_regions,
-				struct region,
-				image->n_checksum_regions);
+				image->n_checksum_regions,
+				sizeof(*image->checksum_regions));
 		r = &image->checksum_regions[n];
 		r->name = "endjunk";
 		r->data = image->buf + bytes;
@@ -461,9 +459,9 @@ struct image *image_load(const char *filename)
 	struct image *image;
 	int rc;
 
-	image = talloc(NULL, struct image);
+	image = mem_alloc_size(NULL, sizeof(*image));
 	if (!image) {
-		perror("talloc(image)");
+		perror("allocating image");
 		return NULL;
 	}
 
@@ -493,8 +491,8 @@ reparse:
 	 * too.
 	 */
 	if (image->data_size > image->size) {
-		image->buf = talloc_realloc(image, image->buf, uint8_t,
-				image->data_size);
+		image->buf = mem_resize(image, image->buf,
+				image->data_size, sizeof(*image->buf));
 		memset(image->buf + image->size, 0,
 				image->data_size - image->size);
 		image->size = image->data_size;
@@ -504,7 +502,7 @@ reparse:
 
 	return image;
 err:
-	talloc_free(image);
+	mem_free(image);
 	return NULL;
 }
 
@@ -549,13 +547,14 @@ int image_add_signature(struct image *image, void *sig, int size)
 
 	if (image->sigbuf) {
 		fprintf(stderr, "Image was already signed; adding additional signature\n");
-		image->sigbuf = talloc_realloc(image, image->sigbuf, uint8_t,
-					       image->sigsize + aligned_size);
+		image->sigbuf = mem_resize(image, image->sigbuf,
+					  image->sigsize + aligned_size,
+					  sizeof(*image->sigbuf));
 		start = image->sigbuf + image->sigsize;
 		image->sigsize += aligned_size;
 	} else {
 		fprintf(stderr, "Signing Unsigned original image\n");
-		start = image->sigbuf = talloc_array(image, uint8_t, aligned_size);
+		start = image->sigbuf = mem_alloc_size(image, aligned_size);
 		image->sigsize = aligned_size;
 	}
 	cth = start;
@@ -616,7 +615,7 @@ int image_remove_signature(struct image *image, int signum)
 	if (buf + aligned_size >= (uint8_t *)image->sigbuf + image->sigsize) {
 		/* only one signature? */
 		if (image->sigbuf == buf) {
-			talloc_free(image->sigbuf);
+			mem_free(image->sigbuf);
 			image->sigbuf = NULL;
 			image->sigsize = 0;
 			return 0;
@@ -627,8 +626,8 @@ int image_remove_signature(struct image *image, int signum)
 			((void *)buf - image->sigbuf) - aligned_size);
 	}
 	image->sigsize -= aligned_size;
-	image->sigbuf = talloc_realloc(image, image->sigbuf, uint8_t,
-				       image->sigsize);
+	image->sigbuf = mem_resize(image, image->sigbuf,
+				  image->sigsize, sizeof(*image->sigbuf));
 	return 0;
 
 }
@@ -657,13 +656,13 @@ int image_write(struct image *image, const char *filename)
 		return -1;
 	}
 
-	rc = write_all(fd, image->buf, image->data_size);
+	rc = fileio_write_all(fd, image->buf, image->data_size);
 	if (!rc)
 		goto out;
 	if (!is_signed)
 		goto out;
 
-	rc = write_all(fd, image->sigbuf, image->sigsize);
+	rc = fileio_write_all(fd, image->sigbuf, image->sigsize);
 	if (!rc)
 		goto out;
 

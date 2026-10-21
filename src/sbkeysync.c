@@ -43,9 +43,7 @@
 
 #include <getopt.h>
 
-#include <ccan/list/list.h>
-#include <ccan/array_size/array_size.h>
-#include <ccan/talloc/talloc.h>
+#include "util.h"
 
 #include <openssl/conf.h>
 #include <openssl/x509.h>
@@ -104,7 +102,7 @@ struct key {
 
 	char				*description;
 
-	struct list_node		list;
+	struct key			*next;
 
 	/* set for keys loaded from a filesystem keystore */
 	struct fs_keystore_entry	*keystore_entry;
@@ -119,7 +117,7 @@ struct cert_type {
 
 struct key_database {
 	const struct key_database_type	*type;
-	struct list_head		keys;
+	struct key			*keys;
 };
 
 struct keyset {
@@ -135,12 +133,12 @@ struct fs_keystore_entry {
 	const char			*name;
 	uint8_t				*data;
 	size_t				len;
-	struct list_node		keystore_list;
-	struct list_node		new_list;
+	struct fs_keystore_entry	*keystore_next;
+	struct fs_keystore_entry	*new_next;
 };
 
 struct fs_keystore {
-	struct list_head	keys;
+	struct fs_keystore_entry	*keys;
 };
 
 struct sync_context {
@@ -150,7 +148,7 @@ struct sync_context {
 	struct fs_keystore	*fs_keystore;
 	const char		**keystore_dirs;
 	unsigned int		n_keystore_dirs;
-	struct list_head	new_keys;
+	struct fs_keystore_entry	*new_keys;
 	bool			verbose;
 	bool			dry_run;
 	bool			set_pk;
@@ -177,10 +175,10 @@ static int sha256_key_parse(struct key *key, uint8_t *data, size_t len)
 	if (len != sha256_id_size)
 		return -1;
 
-	key->id = talloc_memdup(key, data, sha256_id_size);
+	key->id = mem_memdup(key, data, sha256_id_size);
 	key->id_len = sha256_id_size;
 
-	key->description = talloc_array(key, char, len * 2 + 1);
+	key->description = mem_alloc_size(key, len * 2 + 1);
 	for (i = 0; i < len; i++)
 		snprintf(&key->description[i*2], 3, "%02x", data[i]);
 	key->description[len*2] = '\0';
@@ -211,12 +209,12 @@ static int x509_key_parse(struct key *key, uint8_t *data, size_t len)
 
 	key->id_len = ASN1_STRING_length(serial);
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-	key->id = talloc_memdup(key, ASN1_STRING_data(serial), key->id_len);
+	key->id = mem_memdup(key, ASN1_STRING_data(serial), key->id_len);
 #else
-	key->id = talloc_memdup(key, ASN1_STRING_get0_data(serial), key->id_len);
+	key->id = mem_memdup(key, ASN1_STRING_get0_data(serial), key->id_len);
 #endif
 
-	key->description = talloc_array(key, char, description_len);
+	key->description = mem_alloc_size(key, description_len);
 	X509_NAME_oneline(X509_get_subject_name(x509),
 			key->description, description_len);
 
@@ -243,7 +241,7 @@ static int key_parse(struct key *key, const EFI_GUID *type,
 	char guid_str[GUID_STRLEN];
 	unsigned int i;
 
-	for (i = 0; i < ARRAY_SIZE(cert_types); i++) {
+	for (i = 0; i < sizeof(cert_types) / sizeof(cert_types[0]); i++) {
 		if (guidcmp(&cert_types[i].guid, type))
 			continue;
 
@@ -328,25 +326,20 @@ static int keydb_add_key(EFI_SIGNATURE_DATA *sigdata, int len,
 	struct key *key;
 	int rc;
 
-	key = talloc(add_ctx->keyset, struct key);
+	key = mem_alloc_size(add_ctx->keyset, sizeof(*key));
 
 	rc = key_parse(key, type, sigdata->SignatureData,
 			len - sizeof(*sigdata));
 
 	if (rc) {
-		talloc_free(key);
+		mem_free(key);
 		return 0;
 	}
 	key->keystore_entry = add_ctx->ke;
 	key->type = *type;
 
-	/* add a reference to the keystore entry: we don't want it to be
-	 * deallocated if the keystore is deallocated before the
-	 * struct key. */
-	if (key->keystore_entry)
-		talloc_reference(key, key->keystore_entry);
-
-	list_add(&add_ctx->kdb->keys, &key->list);
+	key->next = add_ctx->kdb->keys;
+	add_ctx->kdb->keys = key;
 
 	return 0;
 }
@@ -367,7 +360,7 @@ static int read_firmware_keydb(struct sync_context *ctx,
 
 	guid_to_str(&kdb->type->guid, guid_str);
 
-	filename = talloc_asprintf(ctx->firmware_keys, "%s/%s-%s",
+	filename = mem_asprintf(ctx->firmware_keys, "%s/%s-%s",
 			ctx->efivars_dir, kdb->type->name, guid_str);
 
 	buf = NULL;
@@ -387,8 +380,8 @@ static int read_firmware_keydb(struct sync_context *ctx,
 
 out:
 	if (rc)
-		talloc_free(buf);
-	talloc_free(filename);
+		mem_free(buf);
+	mem_free(filename);
 
 	return rc;
 }
@@ -400,12 +393,12 @@ static void __attribute__((format(printf, 2, 3))) print_keystore_key_error(
 	va_list ap;
 
 	va_start(ap, fmt);
-	errstr = talloc_vasprintf(ke, fmt, ap);
+	errstr = mem_vasprintf(ke, fmt, ap);
 
 	fprintf(stderr, "Invalid key %s/%s\n - %s\n", ke->root, ke->name,
 			errstr);
 
-	talloc_free(errstr);
+	mem_free(errstr);
 	va_end(ap);
 }
 
@@ -421,7 +414,7 @@ static int read_filesystem_keydb(struct sync_context *ctx,
 	add_ctx.keyset = ctx->filesystem_keys;
 	add_ctx.kdb = kdb;
 
-	list_for_each(&ctx->fs_keystore->keys, ke, keystore_list) {
+	for (ke = ctx->fs_keystore->keys; ke; ke = ke->keystore_next) {
 		unsigned int len;
 		void *buf;
 
@@ -501,7 +494,7 @@ static int check_pk(struct sync_context *ctx)
 	struct key *key;
 	int i = 0;
 
-	list_for_each(&ctx->filesystem_keys->pk.keys, key, list)
+	for (key = ctx->filesystem_keys->pk.keys; key; key = key->next)
 		i++;
 
 	return (i <= 1) ? 0 : 1;
@@ -516,10 +509,10 @@ static void print_keyset(struct keyset *keyset, const char *name)
 
 	printf("%s keys:\n", name);
 
-	for (i = 0; i < ARRAY_SIZE(kdbs); i++) {
+	for (i = 0; i < sizeof(kdbs) / sizeof(kdbs[0]); i++) {
 		printf("  %s:\n", kdbs[i]->type->name);
 
-		list_for_each(&kdbs[i]->keys, key, list) {
+		for (key = kdbs[i]->keys; key; key = key->next) {
 			printf("    %s\n", key->description);
 			if (key->keystore_entry)
 				printf("     from %s/%s\n",
@@ -549,11 +542,11 @@ static int keystore_entry_read(struct fs_keystore_entry *ke)
 	const char *path;
 	int rc;
 
-	path = talloc_asprintf(ke, "%s/%s", ke->root, ke->name);
+	path = mem_asprintf(ke, "%s/%s", ke->root, ke->name);
 
 	rc = fileio_read_file(ke, path, &ke->data, &ke->len);
 
-	talloc_free(path);
+	mem_free(path);
 
 	return rc;
 }
@@ -563,7 +556,7 @@ static bool keystore_contains_file(struct fs_keystore *keystore,
 {
 	struct fs_keystore_entry *ke;
 
-	list_for_each(&keystore->keys, ke, keystore_list) {
+	for (ke = keystore->keys; ke; ke = ke->keystore_next) {
 		if (!strcmp(ke->name, filename))
 			return true;
 	}
@@ -576,12 +569,12 @@ static int update_keystore(struct fs_keystore *keystore, const char *root)
 	struct fs_keystore_entry *ke;
 	unsigned int i;
 
-	for (i = 0; i < ARRAY_SIZE(keydb_types); i++) {
+	for (i = 0; i < sizeof(keydb_types) / sizeof(keydb_types[0]); i++) {
 		const char *filename, *dirname;
 		struct dirent *dirent;
 		DIR *dir;
 
-		dirname = talloc_asprintf(keystore, "%s/%s", root,
+		dirname = mem_asprintf(keystore, "%s/%s", root,
 					keydb_types[i].name);
 
 		dir = opendir(dirname);
@@ -593,27 +586,29 @@ static int update_keystore(struct fs_keystore *keystore, const char *root)
 			if (dirent->d_name[0] == '.')
 				continue;
 
-			filename = talloc_asprintf(dirname, "%s/%s",
+			filename = mem_asprintf(dirname, "%s/%s",
 					keydb_types[i].name,
 					dirent->d_name);
 
 			if (keystore_contains_file(keystore, filename))
 				continue;
 
-			ke = talloc(keystore, struct fs_keystore_entry);
+			ke = mem_alloc_size(keystore, sizeof(*ke));
 			ke->name = filename;
 			ke->root = root;
 			ke->type = &keydb_types[i];
-			talloc_steal(ke, ke->name);
+			mem_reparent(ke, ke->name);
 
-			if (keystore_entry_read(ke))
-				talloc_free(ke);
-			else
-				list_add(&keystore->keys, &ke->keystore_list);
+			if (keystore_entry_read(ke)) {
+				mem_free(ke);
+			} else {
+				ke->keystore_next = keystore->keys;
+				keystore->keys = ke;
+			}
 		}
 
 		closedir(dir);
-		talloc_free(dirname);
+		mem_free(dirname);
 	}
 
 	return 0;
@@ -624,8 +619,8 @@ static int read_keystore(struct sync_context *ctx)
 	struct fs_keystore *keystore;
 	unsigned int i;
 
-	keystore = talloc(ctx, struct fs_keystore);
-	list_head_init(&keystore->keys);
+	keystore = mem_alloc_size(ctx, sizeof(*keystore));
+	keystore->keys = NULL;
 
 	for (i = 0; i < ctx->n_keystore_dirs; i++) {
 		update_keystore(keystore, ctx->keystore_dirs[i]);
@@ -642,7 +637,7 @@ static void print_keystore(struct fs_keystore *keystore)
 
 	printf("Filesystem keystore:\n");
 
-	list_for_each(&keystore->keys, ke, keystore_list)
+	for (ke = keystore->keys; ke; ke = ke->keystore_next)
 		printf("  %s/%s [%zd bytes]\n", ke->root, ke->name, ke->len);
 }
 
@@ -672,14 +667,14 @@ static int find_new_keys(struct sync_context *ctx)
 	unsigned int i;
 	int n = 0;
 
-	for (i = 0; i < ARRAY_SIZE(kdbs); i++ ) {
+	for (i = 0; i < sizeof(kdbs) / sizeof(kdbs[0]); i++ ) {
 		struct fs_keystore_entry *ke;
 		struct key *fs_key, *fw_key;
 		bool found;
 
-		list_for_each(&kdbs[i].fs_kdb->keys, fs_key, list) {
+		for (fs_key = kdbs[i].fs_kdb->keys; fs_key; fs_key = fs_key->next) {
 			found = false;
-			list_for_each(&kdbs[i].fw_kdb->keys, fw_key, list) {
+			for (fw_key = kdbs[i].fw_kdb->keys; fw_key; fw_key = fw_key->next) {
 				if (!key_cmp(fs_key, fw_key)) {
 					found = true;
 					break;
@@ -690,7 +685,7 @@ static int find_new_keys(struct sync_context *ctx)
 
 			/* add the keystore entry if it's not already present */
 			found = false;
-			list_for_each(&ctx->new_keys, ke, new_list) {
+			for (ke = ctx->new_keys; ke; ke = ke->new_next) {
 				if (fs_key->keystore_entry == ke) {
 					found = true;
 					break;
@@ -700,8 +695,8 @@ static int find_new_keys(struct sync_context *ctx)
 			if (found)
 				continue;
 
-			list_add(&ctx->new_keys,
-					&fs_key->keystore_entry->new_list);
+			fs_key->keystore_entry->new_next = ctx->new_keys;
+			ctx->new_keys = fs_key->keystore_entry;
 			n++;
 		}
 	}
@@ -715,7 +710,7 @@ static void print_new_keys(struct sync_context *ctx)
 
 	printf("New keys in filesystem:\n");
 
-	list_for_each(&ctx->new_keys, ke, new_list)
+	for (ke = ctx->new_keys; ke; ke = ke->new_next)
 		printf(" %s/%s\n", ke->root, ke->name);
 }
 
@@ -737,13 +732,13 @@ static int insert_key(struct sync_context *ctx, struct fs_keystore_entry *ke)
 	/* we create a contiguous buffer of attributes & key data, so that
 	 * we write to the efivars file in a single syscall */
 	buf_len = sizeof(sigdb_attrs) + ke->len;
-	buf = talloc_array(ke, uint8_t, buf_len);
+	buf = mem_alloc_size(ke, buf_len);
 	memcpy(buf, &sigdb_attrs, sizeof(sigdb_attrs));
 	memcpy(buf + sizeof(sigdb_attrs), ke->data, ke->len);
 
 	guid_to_str(&ke->type->guid, guid_str);
 
-	efivars_filename = talloc_asprintf(ke, "%s/%s-%s", ctx->efivars_dir,
+	efivars_filename = mem_asprintf(ke, "%s/%s-%s", ctx->efivars_dir,
 						ke->type->name, guid_str);
 
 	fd = open(efivars_filename, O_WRONLY | O_CREAT, 0600);
@@ -772,8 +767,8 @@ static int insert_key(struct sync_context *ctx, struct fs_keystore_entry *ke)
 out:
 	if (fd >= 0)
 		close(fd);
-	talloc_free(efivars_filename);
-	talloc_free(buf);
+	mem_free(efivars_filename);
+	mem_free(buf);
 	if (rc)
 		fprintf(stderr, "Error syncing keystore file %s/%s\n",
 				ke->root, ke->name);
@@ -789,7 +784,7 @@ static int insert_new_keys(struct sync_context *ctx)
 	pks = 0;
 	ke_pk = NULL;
 
-	list_for_each(&ctx->new_keys, ke, new_list) {
+	for (ke = ctx->new_keys; ke; ke = ke->new_next) {
 
 		/* we handle PK last */
 		if (ke->type == &keydb_types[KEYDB_PK]) {
@@ -822,18 +817,18 @@ static struct keyset *init_keyset(struct sync_context *ctx)
 {
 	struct keyset *keyset;
 
-	keyset = talloc(ctx, struct keyset);
+	keyset = mem_alloc_size(ctx, sizeof(*keyset));
 
-	list_head_init(&keyset->pk.keys);
+	keyset->pk.keys = NULL;
 	keyset->pk.type = &keydb_types[KEYDB_PK];
 
-	list_head_init(&keyset->kek.keys);
+	keyset->kek.keys = NULL;
 	keyset->kek.type = &keydb_types[KEYDB_KEK];
 
-	list_head_init(&keyset->db.keys);
+	keyset->db.keys = NULL;
 	keyset->db.type = &keydb_types[KEYDB_DB];
 
-	list_head_init(&keyset->dbx.keys);
+	keyset->dbx.keys = NULL;
 	keyset->dbx.type = &keydb_types[KEYDB_DBX];
 
 	return keyset;
@@ -878,11 +873,11 @@ static void version(void)
 
 static void add_keystore_dir(struct sync_context *ctx, const char *dir)
 {
-	ctx->keystore_dirs = talloc_realloc(ctx, ctx->keystore_dirs,
-			const char *, ++ctx->n_keystore_dirs);
+	ctx->keystore_dirs = mem_resize(ctx, ctx->keystore_dirs,
+			++ctx->n_keystore_dirs, sizeof(*ctx->keystore_dirs));
 
 	ctx->keystore_dirs[ctx->n_keystore_dirs - 1] =
-				talloc_strdup(ctx->keystore_dirs, dir);
+				mem_strdup(ctx->keystore_dirs, dir);
 }
 
 int main(int argc, char **argv)
@@ -892,8 +887,7 @@ int main(int argc, char **argv)
 	int rc;
 
 	use_default_keystore_dirs = true;
-	ctx = talloc_zero(NULL, struct sync_context);
-	list_head_init(&ctx->new_keys);
+	ctx = mem_alloc_zero(NULL, 1, sizeof(*ctx));
 	rc = EXIT_SUCCESS;
 
 	for (;;) {
@@ -963,7 +957,8 @@ int main(int argc, char **argv)
 
 	if (use_default_keystore_dirs) {
 		unsigned int i;
-		for (i = 0; i < ARRAY_SIZE(default_keystore_dirs); i++)
+			for (i = 0; i < sizeof(default_keystore_dirs) /
+					sizeof(default_keystore_dirs[0]); i++)
 			add_keystore_dir(ctx, default_keystore_dirs[i]);
 	}
 
@@ -990,7 +985,7 @@ int main(int argc, char **argv)
 	if (!ctx->dry_run && insert_new_keys(ctx))
 		rc = EXIT_FAILURE;
 
-	talloc_free(ctx);
+	mem_free(ctx);
 
 	return rc;
 }

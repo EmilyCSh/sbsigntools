@@ -31,6 +31,8 @@
  */
 
 #include <stdio.h>
+#include <errno.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
@@ -41,12 +43,62 @@
 #include <openssl/err.h>
 #include <openssl/engine.h>
 
-#include <ccan/talloc/talloc.h>
-#include <ccan/read_write_all/read_write_all.h>
+#include "util.h"
 
 #include "fileio.h"
 
 #define FLAG_NOERROR	(1<<0)
+
+bool fileio_read_all(int fd, void *buf, size_t len)
+{
+	uint8_t *data = buf;
+
+	while (len) {
+		size_t count = len > SSIZE_MAX ? SSIZE_MAX : len;
+		ssize_t transferred = read(fd, data, count);
+
+		if (transferred < 0 && errno == EINTR) {
+			continue;
+		}
+
+		if (transferred <= 0) {
+			if (!transferred)
+				errno = EIO;
+			return false;
+		}
+
+		data += transferred;
+		len -= transferred;
+	}
+
+	return true;
+}
+
+bool fileio_write_all(int fd, const void *buf, size_t len)
+{
+	const uint8_t *data = buf;
+
+	while (len) {
+		size_t count = len > SSIZE_MAX ? SSIZE_MAX : len;
+		ssize_t transferred = write(fd, data, count);
+
+		if (transferred < 0 && errno == EINTR) {
+			continue;
+		}
+
+		if (transferred <= 0) {
+			if (!transferred) {
+				errno = EIO;
+			}
+			
+			return false;
+		}
+
+		data += transferred;
+		len -= transferred;
+	}
+	return true;
+}
 
 static int ui_read(UI *ui, UI_STRING *uis)
 {
@@ -158,11 +210,11 @@ static int __fileio_read_file(void *ctx, const char *filename,
 
 	len = statbuf.st_size;
 
-	buf = talloc_array(ctx, uint8_t, len);
+	buf = mem_alloc_size(ctx, len);
 	if (!buf)
 		goto out;
 
-	if (!read_all(fd, buf, len))
+	if (!fileio_read_all(fd, buf, len))
 		goto out;
 
 	rc = 0;
@@ -205,7 +257,7 @@ int fileio_write_file(const char *filename, uint8_t *buf, size_t len)
 		return -1;
 	}
 
-	if (!write_all(fd, buf, len)) {
+	if (!fileio_write_all(fd, buf, len)) {
 		perror("write_all");
 		close(fd);
 		return -1;

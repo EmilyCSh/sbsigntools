@@ -6,7 +6,29 @@ sbsigntool - Signing utility for UEFI secure boot
   are permitted in any medium without royalty provided the copyright
   notice and this notice are preserved.
 
-See file ./INSTALL for building and installation instructions.
+Building requires CMake 3.20 or newer, a C compiler, OpenSSL, libuuid,
+binutils development headers, and GNU-EFI headers.
+Manual pages require help2man. Tests additionally require the GNU-EFI
+libraries and startup files, the openssl command, bash, objdump, and hexdump.
+
+Configure and build out of tree, then install:
+
+  cmake -S . -B build
+  cmake --build build
+  cmake --install build
+
+The install prefix can be set with -DCMAKE_INSTALL_PREFIX=/usr.
+Use -DBUILD_TESTING=OFF to omit test support or -DBUILD_MAN_PAGES=OFF to
+omit manuals.
+
+To build and run the tests:
+
+  cmake -S . -B build -DBUILD_TESTING=ON
+  cmake --build build
+  ctest --test-dir build --output-on-failure
+
+CTest generates fresh test certificates before running the shell tests.
+Installation is not required to run the tests.
 
 Original development was done at:
   git://kernel.ubuntu.com/jk/sbsigntool.git

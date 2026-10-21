@@ -52,7 +52,7 @@
 #include <openssl/bio.h>
 #include <openssl/x509.h>
 
-#include <ccan/talloc/talloc.h>
+#include "util.h"
 
 #include "idc.h"
 #include "image.h"
@@ -112,7 +112,7 @@ static void set_default_outfilename(struct sign_context *ctx)
 
 	extension = ctx->detached ? "pk7" : "signed";
 
-	ctx->outfilename = talloc_asprintf(ctx, "%s.%s",
+	ctx->outfilename = mem_asprintf(ctx, "%s.%s",
 			ctx->infilename, extension);
 }
 
@@ -158,7 +158,7 @@ int main(int argc, char **argv)
 	int rc, c, sigsize;
 	EVP_PKEY *pkey;
 
-	ctx = talloc_zero(NULL, struct sign_context);
+	ctx = mem_alloc_zero(NULL, 1, sizeof(*ctx));
 
 	keyfilename = NULL;
 	certfilename = NULL;
@@ -173,7 +173,7 @@ int main(int argc, char **argv)
 
 		switch (c) {
 		case 'o':
-			ctx->outfilename = talloc_strdup(ctx, optarg);
+			ctx->outfilename = mem_strdup(ctx, optarg);
 			break;
 		case 'c':
 			certfilename = optarg;
@@ -228,7 +228,7 @@ int main(int argc, char **argv)
 	if (!ctx->image)
 		return EXIT_FAILURE;
 
-	talloc_steal(ctx, ctx->image);
+	mem_reparent(ctx, ctx->image);
 
 	ERR_load_crypto_strings();
 	ERR_load_BIO_strings();
@@ -279,7 +279,7 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 
 	sigsize = i2d_PKCS7(p7, NULL);
-	tmp = buf = talloc_array(ctx->image, uint8_t, sigsize);
+	tmp = buf = mem_alloc_size(ctx->image, sigsize);
 	i2d_PKCS7(p7, &tmp);
 	ERR_print_errors_fp(stdout);
 
@@ -296,7 +296,7 @@ int main(int argc, char **argv)
 	} else
 		image_write(ctx->image, ctx->outfilename);
 
-	talloc_free(ctx);
+	mem_free(ctx);
 
 	return EXIT_SUCCESS;
 }

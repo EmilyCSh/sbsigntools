@@ -41,8 +41,7 @@
 
 #include <getopt.h>
 
-#include <ccan/talloc/talloc.h>
-#include <ccan/read_write_all/read_write_all.h>
+#include "util.h"
 
 #include "image.h"
 #include "idc.h"
@@ -378,7 +377,7 @@ int main(int argc, char **argv)
 
 	}
 
-	talloc_free(image);
+	mem_free(image);
 
 	if (list)
 		exit(EXIT_SUCCESS);

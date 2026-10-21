@@ -51,9 +51,7 @@
 #include <openssl/pem.h>
 #include <openssl/pkcs7.h>
 
-#include <ccan/array_size/array_size.h>
-#include <ccan/read_write_all/read_write_all.h>
-#include <ccan/talloc/talloc.h>
+#include "util.h"
 
 #include "efivars.h"
 #include "fileio.h"
@@ -111,7 +109,7 @@ static void set_default_outfilename(struct varsign_context *ctx)
 {
 	const char *extension = "signed";
 
-	ctx->outfilename = talloc_asprintf(ctx, "%s.%s",
+	ctx->outfilename = mem_asprintf(ctx, "%s.%s",
 			ctx->infilename, extension);
 }
 
@@ -123,7 +121,7 @@ static uint32_t parse_single_attr(const char *attr_str)
 	if (!strncmp(attr_str, attr_prefix, strlen(attr_prefix)))
 		attr_str += strlen(attr_prefix);
 
-	for (i = 0; i < ARRAY_SIZE(attrs); i++) {
+	for (i = 0; i < sizeof(attrs) / sizeof(attrs[0]); i++) {
 		if (!strcmp(attr_str, attrs[i].name))
 			return attrs[i].value;
 	}
@@ -168,7 +166,7 @@ static int set_varname(struct varsign_context *ctx, const char *str)
 
 	len = strlen(str);
 
-	wstr = talloc_array(ctx, CHAR16, len);
+	wstr = mem_resize(ctx, NULL, len, sizeof(*wstr));
 
 	for (i = 0; i < len; i++)
 		wstr[i] = str[i];
@@ -272,7 +270,7 @@ static int add_auth_descriptor(struct varsign_context *ctx)
 
 
 	/* set up our auth descriptor */
-	auth = talloc_size(ctx, sizeof(*auth) + len);
+	auth = mem_alloc_size(ctx, sizeof(*auth) + len);
 
 	auth->TimeStamp = timestamp;
 	auth->AuthInfo.Hdr.dwLength = len + sizeof(auth->AuthInfo);
@@ -305,7 +303,7 @@ int write_signed(struct varsign_context *ctx, int include_attrs)
 	 * data
 	 */
 	if (include_attrs) {
-		rc = write_all(fd, &ctx->var_attrs, sizeof(ctx->var_attrs));
+		rc = fileio_write_all(fd, &ctx->var_attrs, sizeof(ctx->var_attrs));
 		if (!rc) {
 			perror("write_all");
 			goto err;
@@ -313,14 +311,14 @@ int write_signed(struct varsign_context *ctx, int include_attrs)
 	}
 
 	/* Write the authentication descriptor */
-	rc = write_all(fd, ctx->auth_descriptor, ctx->auth_descriptor_len);
+	rc = fileio_write_all(fd, ctx->auth_descriptor, ctx->auth_descriptor_len);
 	if (!rc) {
 		perror("write_all");
 		goto err;
 	}
 
 	/* ... and the variable data itself */
-	rc = write_all(fd, ctx->data, ctx->data_len);
+	rc = fileio_write_all(fd, ctx->data, ctx->data_len);
 	if (!rc) {
 		perror("write_all");
 		goto err;
@@ -421,7 +419,7 @@ void usage(void)
 		"\t--attr <attrs>   variable attributes. One or more of:\n",
 		toolname);
 
-	for (i = 0; i < ARRAY_SIZE(attrs); i++)
+	for (i = 0; i < sizeof(attrs) / sizeof(attrs[0]); i++)
 		printf("\t                     %s\n", attrs[i].name);
 
 	printf("\t                  Separate multiple attrs with a comma,\n"
@@ -444,7 +442,7 @@ int main(int argc, char **argv)
 	bool include_attrs;
 	int c;
 
-	ctx = talloc_zero(NULL, struct varsign_context);
+	ctx = mem_alloc_zero(NULL, 1, sizeof(*ctx));
 
 	keyfilename = NULL;
 	certfilename = NULL;

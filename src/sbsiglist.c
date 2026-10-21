@@ -50,9 +50,7 @@
 #include <openssl/pem.h>
 #include <openssl/pkcs7.h>
 
-#include <ccan/array_size/array_size.h>
-#include <ccan/read_write_all/read_write_all.h>
-#include <ccan/talloc/talloc.h>
+#include "util.h"
 
 #include "efivars.h"
 #include "fileio.h"
@@ -106,7 +104,7 @@ void usage(void)
 		"\t--type <type>    Signature type. One of:\n",
 		toolname);
 
-	for (i = 0; i < ARRAY_SIZE(cert_types); i++)
+	for (i = 0; i < sizeof(cert_types) / sizeof(cert_types[0]); i++)
 		printf("\t                     %s\n", cert_types[i].name);
 
 	printf("\t--output <file>  write signed data to <file>\n"
@@ -136,7 +134,7 @@ static int siglist_create(struct siglist_context *ctx)
 
 	size = sizeof(*siglist) + sizeof(*sigdata) + ctx->data_len;
 
-	siglist = talloc_size(ctx, size);
+	siglist = mem_alloc_size(ctx, size);
 	sigdata = (void *)(siglist + 1);
 
 	siglist->SignatureType = ctx->type->guid;
@@ -173,7 +171,7 @@ static struct cert_type *parse_type(const char *str)
 {
 	unsigned int i;
 
-	for (i = 0; i < ARRAY_SIZE(cert_types); i++)
+	for (i = 0; i < sizeof(cert_types) / sizeof(cert_types[0]); i++)
 		if (!strcasecmp(cert_types[i].name, str))
 			return &cert_types[i];
 
@@ -184,7 +182,7 @@ static void set_default_outfilename(struct siglist_context *ctx)
 {
 	const char *extension = "siglist";
 
-	ctx->outfilename = talloc_asprintf(ctx, "%s.%s",
+	ctx->outfilename = mem_asprintf(ctx, "%s.%s",
 			ctx->infilename, extension);
 }
 int main(int argc, char **argv)
@@ -193,7 +191,7 @@ int main(int argc, char **argv)
 	struct siglist_context *ctx;
 	int c;
 
-	ctx = talloc_zero(NULL, struct siglist_context);
+	ctx = mem_alloc_zero(NULL, 1, sizeof(*ctx));
 
 	owner_guid_str = NULL;
 	type_str = NULL;
