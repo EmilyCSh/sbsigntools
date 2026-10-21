@@ -41,7 +41,7 @@
 #include "coff/pe.h"
 
 struct region {
-	void	*data;
+	uint8_t	*data;
 	int	size;
 	char	*name;
 };
@@ -87,7 +87,7 @@ struct image {
 	int		n_checksum_regions;
 
 	/* Generated signature */
-	void		*sigbuf;
+	uint8_t		*sigbuf;
 	size_t		sigsize;
 
 };

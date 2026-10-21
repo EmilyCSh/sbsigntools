@@ -3,8 +3,11 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define BUILD_ASSERT_OR_ZERO(condition) (sizeof(char[(condition) ? 1 : -1]) - 1)
+
+uint32_t cpu_to_le32(uint32_t value);
 
 void *mem_alloc_size(const void *parent, size_t size);
 void *mem_alloc_zero(const void *parent, size_t count, size_t size);

@@ -277,7 +277,7 @@ static int add_auth_descriptor(struct varsign_context *ctx)
 	auth->AuthInfo.Hdr.wRevision = 0x0200;
 	auth->AuthInfo.Hdr.wCertificateType = 0x0EF1;
 	auth->AuthInfo.CertType = cert_pkcs7_guid;
-	tmp = auth->AuthInfo.CertData;
+	tmp = auth->CertData;
 	i2d_PKCS7_SIGNED(p7->d.sign, &tmp);
 
 	ctx->auth_descriptor = auth;
@@ -352,7 +352,7 @@ int write_signed(struct varsign_context *ctx, int include_attrs)
 
 		printf("    [%04zx:%04zx] pkcs7 data\n",
 				i + offsetof(EFI_VARIABLE_AUTHENTICATION_2,
-					AuthInfo.CertData),
+					CertData),
 				ctx->auth_descriptor_len -
 					sizeof(EFI_VARIABLE_AUTHENTICATION_2));
 

@@ -80,12 +80,12 @@ typedef struct {
 typedef struct {
 	WIN_CERTIFICATE	Hdr;
 	EFI_GUID	CertType;
-	UINT8		CertData[];
 } WIN_CERTIFICATE_UEFI_GUID;
 
 typedef struct {
 	EFI_TIME			TimeStamp;
 	WIN_CERTIFICATE_UEFI_GUID	AuthInfo;
+	UINT8				CertData[];
 } EFI_VARIABLE_AUTHENTICATION_2;
 
 

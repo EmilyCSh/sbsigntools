@@ -320,7 +320,7 @@ int main(int argc, char **argv)
 		if (rc) {
 			if (sig_count == 0) {
 				fprintf(stderr, "Unable to read signature data from %s\n",
-					detached_sig_filename ? : image_filename);
+					detached_sig_filename ? detached_sig_filename : image_filename);
 			}
 			break;
 		}

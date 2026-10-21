@@ -32,7 +32,6 @@
 
 #include <stdio.h>
 #include <errno.h>
-#include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
@@ -49,12 +48,16 @@
 
 #define FLAG_NOERROR	(1<<0)
 
+enum { 
+	FILEIO_CHUNK_SIZE = 32767 
+};
+
 bool fileio_read_all(int fd, void *buf, size_t len)
 {
 	uint8_t *data = buf;
 
 	while (len) {
-		size_t count = len > SSIZE_MAX ? SSIZE_MAX : len;
+		size_t count = len > FILEIO_CHUNK_SIZE ? FILEIO_CHUNK_SIZE : len;
 		ssize_t transferred = read(fd, data, count);
 
 		if (transferred < 0 && errno == EINTR) {
@@ -79,7 +82,7 @@ bool fileio_write_all(int fd, const void *buf, size_t len)
 	const uint8_t *data = buf;
 
 	while (len) {
-		size_t count = len > SSIZE_MAX ? SSIZE_MAX : len;
+		size_t count = len > FILEIO_CHUNK_SIZE ? FILEIO_CHUNK_SIZE : len;
 		ssize_t transferred = write(fd, data, count);
 
 		if (transferred < 0 && errno == EINTR) {

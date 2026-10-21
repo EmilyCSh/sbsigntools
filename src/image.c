@@ -38,7 +38,6 @@
 #include <unistd.h>
 #include <string.h>
 
-#include <endian.h>
 #include "util.h"
 #include <openssl/sha.h>
 
@@ -170,11 +169,11 @@ static void image_pecoff_update_checksum(struct image *image)
 	 * We also skip the 32-bits of checksum data in the PE/COFF header.
 	 */
 	checksum = csum_bytes(0, image->buf,
-			(void *)image->checksum - (void *)image->buf);
+			(uint8_t *)image->checksum - image->buf);
 	checksum = csum_bytes(checksum,
 			image->checksum + 1,
-			(void *)(image->buf + image->data_size) -
-			(void *)(image->checksum + 1));
+			(image->buf + image->data_size) -
+			(uint8_t *)(image->checksum + 1));
 
 	if (is_signed) {
 		checksum = csum_bytes(checksum, image->sigbuf, image->sigsize);
@@ -185,7 +184,7 @@ static void image_pecoff_update_checksum(struct image *image)
 	if (is_signed)
 		checksum += image->sigsize;
 
-	*(image->checksum) = htole32(checksum);
+	*(image->checksum) = cpu_to_le32(checksum);
 }
 
 static int image_pecoff_parse(struct image *image)
@@ -194,7 +193,7 @@ static int image_pecoff_parse(struct image *image)
 	char nt_sig[] = {'P', 'E', 0, 0};
 	size_t size = image->size;
 	int rc, cert_table_offset;
-	void *buf = image->buf;
+	uint8_t *buf = image->buf;
 	uint16_t magic;
 	uint32_t addr;
 
@@ -204,7 +203,7 @@ static int image_pecoff_parse(struct image *image)
 		return -1;
 	}
 
-	image->doshdr = buf;
+	image->doshdr = (void *)buf;
 
 	if (image->doshdr->e_magic[0] != 0x4d
 			|| image->doshdr->e_magic[1] != 0x5a) {
@@ -224,7 +223,7 @@ static int image_pecoff_parse(struct image *image)
 		return -1;
 	}
 
-	image->pehdr = buf + addr;
+	image->pehdr = (void *)(buf + addr);
 	if (memcmp(image->pehdr->nt_signature, nt_sig, sizeof(nt_sig))) {
 		fprintf(stderr, "Invalid PE header signature\n");
 		return -1;
@@ -280,7 +279,7 @@ static int image_pecoff_parse(struct image *image)
 
 	image->cert_table_size = image->data_dir_sigtable->size;
 	if (image->cert_table_size)
-		cert_table = buf + image->data_dir_sigtable->addr;
+		cert_table = (void *)(buf + image->data_dir_sigtable->addr);
 	else
 		cert_table = NULL;
 
@@ -297,7 +296,7 @@ static int image_pecoff_parse(struct image *image)
 	}
 
 	image->sections = pehdr_u16(image->pehdr->f_nscns);
-	image->scnhdr = image->opthdr.addr + image->opthdr_size;
+	image->scnhdr = (void *)((uint8_t *)image->opthdr.addr + image->opthdr_size);
 
 	return 0;
 }
@@ -316,13 +315,13 @@ static int cmp_regions(const void *p1, const void *p2)
 static void set_region_from_range(struct region *region, void *start, void *end)
 {
 	region->data = start;
-	region->size = end - start;
+	region->size = (uint8_t *)end - (uint8_t *)start;
 }
 
 static int image_find_regions(struct image *image)
 {
 	struct region *regions, *r;
-	void *buf = image->buf;
+	uint8_t *buf = image->buf;
 	int i, gap_warn;
 	size_t bytes;
 
@@ -358,7 +357,7 @@ static int image_find_regions(struct image *image)
 	bytes += sizeof(struct data_dir_entry);
 	/* third region: end of checksum to end of headers */
 	set_region_from_range(&regions[2],
-				(void *)image->data_dir_sigtable
+				(uint8_t *)image->data_dir_sigtable
 					+ sizeof(struct data_dir_entry),
 				buf + image->header_size);
 	regions[2].name = "datadir[CERT]->headers";
@@ -449,7 +448,7 @@ static int image_find_regions(struct image *image)
 	 * fix this by adding bytes to the end of the text section (which must
 	 * be included in the hash)
 	 */
-	image->data_size = align_up((r->data - (void *)image->buf) + r->size, 8);
+	image->data_size = align_up((r->data - image->buf) + r->size, 8);
 
 	return 0;
 }
@@ -540,7 +539,7 @@ int image_add_signature(struct image *image, void *sig, int size)
 	struct cert_table_header *cth;
 	int tot_size = size + sizeof(*cth);
 	int aligned_size = align_up(tot_size, 8);
-	void *start;
+	uint8_t *start;
 
 	if (image->sigbuf) {
 		fprintf(stderr, "Image was already signed; adding additional signature\n");
@@ -554,7 +553,7 @@ int image_add_signature(struct image *image, void *sig, int size)
 		start = image->sigbuf = mem_alloc_size(image, aligned_size);
 		image->sigsize = aligned_size;
 	}
-	cth = start;
+	cth = (void *)start;
 	start += sizeof(*cth);
 	memset(cth, 0 , sizeof(*cth));
 	cth->size = tot_size;
@@ -573,7 +572,7 @@ int image_get_signature(struct image *image, int signum,
 			uint8_t **buf, size_t *size)
 {
 	struct cert_table_header *header;
-	void *addr = (void *)image->sigbuf;
+	uint8_t *addr = image->sigbuf;
 	int i;
 
 	if (!image->sigbuf) {
@@ -581,12 +580,12 @@ int image_get_signature(struct image *image, int signum,
 		return -1;
 	}
 
-	header = addr;
+	header = (void *)addr;
 	for (i = 0; i < signum; i++) {
 		addr += align_up(header->size, 8);
-		header = addr;
+		header = (void *)addr;
 	}
-	if (addr >= ((void *)image->sigbuf +
+	if (addr >= (image->sigbuf +
 		     image->sigsize))
 		return -1;
 
@@ -620,7 +619,7 @@ int image_remove_signature(struct image *image, int signum)
 	} else {
 		/* sig is in the middle ... just copy the rest over it */
 		memmove(buf, buf + aligned_size, image->sigsize -
-			((void *)buf - image->sigbuf) - aligned_size);
+			(buf - image->sigbuf) - aligned_size);
 	}
 	image->sigsize -= aligned_size;
 	image->sigbuf = mem_resize(image, image->sigbuf,

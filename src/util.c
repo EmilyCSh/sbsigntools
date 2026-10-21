@@ -6,6 +6,21 @@
 
 #include "util.h"
 
+uint32_t cpu_to_le32(uint32_t value)
+{
+	unsigned char bytes[4] = {
+		value & 0xff,
+		(value >> 8) & 0xff,
+		(value >> 16) & 0xff,
+		(value >> 24) & 0xff
+	};
+    
+	uint32_t result;
+
+	memcpy(&result, bytes, sizeof(result));
+	return result;
+}
+
 union mem_header {
 	struct {
 		union mem_header *parent;
@@ -164,8 +179,13 @@ void *mem_memdup(const void *parent, const void *data, size_t size)
 char *mem_strndup(const void *parent, const char *str, size_t len)
 {
 	char *copy;
+	size_t length = 0;
 
-	len = strnlen(str, len);
+	while (length < len && str[length] != '\0') {
+		length++;
+	}
+    
+	len = length;
 	copy = mem_alloc_size(parent, len + 1);
 
 	if (copy) {

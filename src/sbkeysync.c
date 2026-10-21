@@ -53,8 +53,8 @@
 #include "efivars.h"
 
 #define EFIVARS_MOUNTPOINT	"/sys/firmware/efi/efivars"
-#define PSTORE_FSTYPE		((typeof(((struct statfs *)0)->f_type))0x6165676C)
-#define EFIVARS_FSTYPE		((typeof(((struct statfs *)0)->f_type))0xde5e81e4)
+#define PSTORE_FSTYPE		UINT32_C(0x6165676c)
+#define EFIVARS_FSTYPE		UINT32_C(0xde5e81e4)
 
 #define EFI_IMAGE_SECURITY_DATABASE_GUID \
 	{ 0xd719b2cb, 0x3d3a, 0x4596, \
@@ -277,12 +277,12 @@ static int sigdb_iterate(void *db_data, size_t len,
 	if (len < sizeof(*siglist))
 		return -1;
 
-	for (i = 0, siglist = db_data + i;
+	for (i = 0, siglist = (EFI_SIGNATURE_LIST *)((uint8_t *)db_data + i);
 			i + sizeof(*siglist) <= len &&
 			i + siglist->SignatureListSize > i &&
 			i + siglist->SignatureListSize <= len && !rc;
 			i += siglist->SignatureListSize,
-			siglist = db_data + i) {
+			siglist = (EFI_SIGNATURE_LIST *)((uint8_t *)db_data + i)) {
 
 		/* ensure that the header & sig sizes are sensible */
 		if (siglist->SignatureHeaderSize > siglist->SignatureListSize)
@@ -299,7 +299,7 @@ static int sigdb_iterate(void *db_data, size_t len,
 				j < siglist->SignatureListSize && !rc;
 				j += siglist->SignatureSize)
 		{
-			sigdata = (void *)(siglist) + j;
+			sigdata = (EFI_SIGNATURE_DATA *)((uint8_t *)siglist + j);
 
 			rc = fn(sigdata, siglist->SignatureSize,
 					&siglist->SignatureType, arg);
@@ -454,7 +454,7 @@ static int read_filesystem_keydb(struct sync_context *ctx,
 		/* the dwLength field includes the size of the WIN_CERTIFICATE,
 		 * but not the other data in the EFI_VARIABLE_AUTHENTICATION_2
 		 * descriptor */
-		buf += sizeof(*auth) - sizeof(auth->AuthInfo) +
+		buf = (uint8_t *)buf + sizeof(*auth) - sizeof(auth->AuthInfo) +
 			auth->AuthInfo.Hdr.dwLength;
 		len -= sizeof(*auth) - sizeof(auth->AuthInfo) +
 			auth->AuthInfo.Hdr.dwLength;
@@ -529,8 +529,10 @@ static int check_efivars_mount(const char *mountpoint)
 	if (rc)
 		return -1;
 
-	if (statbuf.f_type != EFIVARS_FSTYPE && statbuf.f_type != PSTORE_FSTYPE)
+	if ((uint32_t) statbuf.f_type != EFIVARS_FSTYPE &&
+			(uint32_t) statbuf.f_type != PSTORE_FSTYPE) {
 		return -1;
+	}
 
 	return 0;
 }
