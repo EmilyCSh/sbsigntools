@@ -99,11 +99,7 @@ set_tests_properties(test-certificates PROPERTIES FIXTURES_SETUP certificates
 set(shell_tests sign-verify sign-verify-detached sign-detach-verify
     sign-attach-verify sign-missing-image sign-missing-cert sign-missing-key
     verify-missing-image verify-missing-cert sign-invalidattach-verify
-    resign-warning reattach-warning)
-
-if(test_arch MATCHES "^(x86_64|ia32)$")
-    list(APPEND shell_tests cert-table-header detach-remove)
-endif()
+    resign-warning reattach-warning cert-table-header detach-remove)
 
 foreach(test IN LISTS shell_tests)
     configure_file("${test}.sh" "${test}.sh" COPYONLY)
