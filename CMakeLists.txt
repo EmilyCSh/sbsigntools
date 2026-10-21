@@ -3,13 +3,14 @@ project(sbsigntools VERSION 0.9.5 LANGUAGES C)
 
 include(GNUInstallDirs)
 option(BUILD_TESTING "Build and enable tests" OFF)
+option(BUILD_MAN_PAGES "Generate and install manual pages with help2man" OFF)
 include(CTest)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
-add_compile_options(-Wall -Wextra)
+add_compile_options(-Wall -Wextra -Werror)
 
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(PkgConfig REQUIRED)
@@ -55,8 +56,6 @@ foreach(tool sbvarsign sbsiglist sbkeysync)
     target_compile_definitions(${tool} PRIVATE EFI_FUNCTION_WRAPPER)
     target_link_libraries(${tool} PRIVATE PkgConfig::UUID)
 endforeach()
-
-option(BUILD_MAN_PAGES "Generate and install manual pages with help2man" OFF)
 
 if(BUILD_MAN_PAGES)
     add_subdirectory(docs)

@@ -75,7 +75,6 @@ typedef struct {
 	UINT32		dwLength;
 	UINT16		wRevision;
 	UINT16		wCertificateType;
-	UINT8		bCertificate[];
 } WIN_CERTIFICATE;
 
 typedef struct {
