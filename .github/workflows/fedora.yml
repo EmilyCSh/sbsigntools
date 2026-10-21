@@ -29,10 +29,10 @@ jobs:
       - name: Install Dependencies
         run: |
           dnf install -y \
-            bash binutils binutils-devel ca-certificates clang cmake \
-            coreutils diffutils gawk gcc git gnu-efi-devel grep help2man \
-            libuuid-devel lld make ninja-build openssl openssl-devel \
-            openssl-devel-engine pkgconf-pkg-config sed util-linux
+            bash ca-certificates clang cmake coreutils diffutils gawk \
+            gcc git gnu-efi-devel grep help2man libuuid-devel lld make \
+            ninja-build openssl openssl-devel openssl-devel-engine \
+            pkgconf-pkg-config sed util-linux
 
       - name: Checkout
         env:

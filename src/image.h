@@ -32,13 +32,10 @@
 #ifndef IMAGE_H
 #define IMAGE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
-#include <bfd.h>
-#define DO_NOT_DEFINE_LINENO
-
-#include "coff/external.h"
-#include "coff/pe.h"
+#include "pe.h"
 
 struct region {
 	uint8_t	*data;

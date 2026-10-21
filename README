@@ -7,7 +7,7 @@ sbsigntool - Signing utility for UEFI secure boot
   notice and this notice are preserved.
 
 Building requires CMake 3.20 or newer, a C compiler, OpenSSL, libuuid,
-binutils development headers, and GNU-EFI headers.
+and GNU-EFI headers.
 Manual pages require help2man. Tests additionally require the GNU-EFI
 libraries and startup files, the openssl command, bash, objdump, and hexdump.
 

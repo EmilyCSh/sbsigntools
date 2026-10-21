@@ -29,8 +29,8 @@ jobs:
       - name: Install Dependencies
         run: |
           apk add --no-cache \
-            bash binutils binutils-dev build-base ca-certificates clang cmake \
-            coreutils diffutils git gnu-efi-dev grep help2man lld ninja \
+            bash build-base ca-certificates clang cmake coreutils \
+            diffutils git gnu-efi-dev grep help2man lld ninja \
             openssl openssl-dev pkgconf util-linux util-linux-dev
 
       - name: Checkout

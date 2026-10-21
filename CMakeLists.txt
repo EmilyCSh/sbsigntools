@@ -15,7 +15,6 @@ add_compile_options(-Wall -Wextra -Werror -Wpedantic)
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(UUID REQUIRED IMPORTED_TARGET uuid)
-find_path(BFD_INCLUDE_DIR bfd.h REQUIRED)
 
 set(EFI_ARCH "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "GNU-EFI architecture")
 if(EFI_ARCH MATCHES "^i.86$")
@@ -29,7 +28,6 @@ find_path(EFI_ARCH_INCLUDE_DIR efibind.h
     HINTS "${EFI_INCLUDE_DIR}/efi/${EFI_ARCH}" REQUIRED)
 
 add_library(sbcommon STATIC src/idc.c src/image.c src/fileio.c src/util.c)
-target_include_directories(sbcommon PUBLIC "${BFD_INCLUDE_DIR}")
 target_compile_definitions(sbcommon PUBLIC
     PACKAGE="sbsigntool"
     PACKAGE_VERSION="${PROJECT_VERSION}"
