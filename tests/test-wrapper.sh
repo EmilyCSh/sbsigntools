@@ -32,10 +32,10 @@ function run_test()
 	export image
 
 	# create the temporary directory...
-	tempdir=$(mktemp --directory)
+	tempdir=$(mktemp -d "${TMPDIR:-/tmp}/sbsigntools.XXXXXXXXXX")
 
 	# ... and run the test in it.
-	( cd "$tempdir";  $test )
+	( cd "$tempdir" && "$BASH" -e "$test" )
 
 	if [ $? -ne 0 ]
 	then

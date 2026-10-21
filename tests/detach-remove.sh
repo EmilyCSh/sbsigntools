@@ -15,5 +15,5 @@ objdump -p $unsigned | grep -q '0\+ 0\+ Security Directory'
 # when signing, so make sure the sizes match modulo the padding
 ##
 # ensure that the unsigned file is the same size as our original binary
-[ $(( ($(stat --format=%s "$image")+7)&~7)) -eq $(( ($(stat --format=%s "$unsigned")+7)&~7)) ]
+[ $(( ($(wc -c < "$image")+7)&~7)) -eq $(( ($(wc -c < "$unsigned")+7)&~7)) ]
 

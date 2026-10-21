@@ -10,6 +10,9 @@ Building requires CMake 3.20 or newer, a C compiler, OpenSSL, libuuid.
 Manual pages require help2man. Tests additionally require the the openssl 
 command, bash, objdump, and hexdump.
 
+sbkeysync is only built and installed on Linux, as it requires efivarfs.
+It is not available on other operating systems.
+
 Configure and build out of tree, then install:
 
   cmake -S . -B build

@@ -34,7 +34,10 @@ if(OPENSSL_VERSION VERSION_GREATER_EQUAL 3.0)
     target_compile_definitions(sbcommon PUBLIC OPENSSL_API_COMPAT=0x10100000L)
 endif()
 
-set(SBSIGNTOOLS sbsign sbverify sbattach sbvarsign sbsiglist sbkeysync)
+set(SBSIGNTOOLS sbsign sbverify sbattach sbvarsign sbsiglist)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(APPEND SBSIGNTOOLS sbkeysync)
+endif()
 
 foreach(tool IN LISTS SBSIGNTOOLS)
     add_executable(${tool} "src/${tool}.c")
@@ -44,7 +47,7 @@ foreach(tool IN LISTS SBSIGNTOOLS)
     install(TARGETS ${tool} RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 endforeach()
 
-foreach(tool sbvarsign sbsiglist sbkeysync)
+foreach(tool sbvarsign sbsiglist)
     target_link_libraries(${tool} PRIVATE PkgConfig::UUID)
 endforeach()
 
