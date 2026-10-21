@@ -1,0 +1,57 @@
+name: Chimera Linux
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Chimera Linux (${{ matrix.arch }}, clang)
+    runs-on: ${{ matrix.runner }}
+    container: chimeralinux/chimera:latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-26.04-arm
+
+    steps:
+      - name: Install Dependencies
+        run: |
+          apk add --no-cache \
+            base-devel bash ca-certificates clang cmake git help2man \
+            llvm ninja openssl openssl-devel pkgconf util-linux-uuid-devel
+
+      - name: Checkout
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+          printf '::add-mask::%s\n' "$auth"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" \
+            fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-ci -G Ninja \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON
+
+      - name: Build
+        run: cmake --build build-ci
+
+      - name: Test
+        run: ctest --test-dir build-ci --output-on-failure --no-tests=error
