@@ -1,63 +1,53 @@
 find_program(BASH_EXECUTABLE bash REQUIRED)
 
 add_library(test_efi OBJECT test.c)
-target_include_directories(test_efi PRIVATE "${EFI_INCLUDE_DIR}/efi" "${EFI_ARCH_INCLUDE_DIR}")
-target_compile_options(test_efi PRIVATE -fshort-wchar -fno-stack-protector -fpic
+target_include_directories(test_efi SYSTEM PRIVATE "${EFI_INCLUDE_DIR}/efi" "${EFI_ARCH_INCLUDE_DIR}")
+target_compile_options(test_efi PRIVATE -fshort-wchar -fno-stack-protector -fno-pic -fno-pie
     -ffreestanding -fno-asynchronous-unwind-tables -fno-unwind-tables)
 
-if(EFI_ARCH MATCHES "^(x86_64|ia32)$")
-    if(EFI_ARCH STREQUAL "x86_64")
-        set(efi_pe_machine 0x8664)
-        set(efi_pe_magic 0x20b)
-        set(efi_pe_optional_size 240)
-        set(efi_pe_characteristics 0x22)
-        set(efi_pe_image_base "QUAD(0)")
-        set(efi_pe_word QUAD)
-        target_compile_definitions(test_efi PRIVATE GNU_EFI_USE_MS_ABI)
-        target_compile_options(test_efi PRIVATE -mno-red-zone)
-    else()
-        set(efi_pe_machine 0x14c)
-        set(efi_pe_magic 0x10b)
-        set(efi_pe_optional_size 224)
-        set(efi_pe_characteristics 0x102)
-        set(efi_pe_image_base "LONG(0) LONG(0)")
-        set(efi_pe_word LONG)
-    endif()
-    target_compile_options(test_efi PRIVATE -fno-pic -fno-pie)
-    set(efi_script "${CMAKE_CURRENT_BINARY_DIR}/test-efi.lds")
-    configure_file(test-efi.lds.in "${efi_script}" @ONLY)
-    set(efi_sections -j .header -j .text -j .reloc)
+if(EFI_ARCH STREQUAL "x86_64")
+    set(efi_pe_machine 0x8664)
+    target_compile_definitions(test_efi PRIVATE GNU_EFI_USE_MS_ABI)
+    target_compile_options(test_efi PRIVATE -mno-red-zone)
+elseif(EFI_ARCH STREQUAL "ia32")
+    set(efi_pe_machine 0x14c)
+elseif(EFI_ARCH STREQUAL "arm")
+    set(efi_pe_machine 0x1c2)
+    target_compile_options(test_efi PRIVATE -mthumb)
+elseif(EFI_ARCH STREQUAL "aarch64")
+    set(efi_pe_machine 0xaa64)
+elseif(EFI_ARCH STREQUAL "riscv64")
+    set(efi_pe_machine 0x5064)
 else()
-    if(NOT EFI_ARCH MATCHES "^(arm|aarch64|riscv64)$")
-        message(FATAL_ERROR "Unsupported EFI test architecture: ${EFI_ARCH}")
-    endif()
-    find_file(EFI_CRT "crt0-efi-${EFI_ARCH}.o"
-        PATHS /lib /lib64 /usr/lib /usr/lib64 /usr/lib32
-        PATH_SUFFIXES efi gnuefi REQUIRED)
-    get_filename_component(EFI_LIBRARY_DIR "${EFI_CRT}" DIRECTORY)
-    find_file(EFI_LINKER_SCRIPT "elf_${EFI_ARCH}_efi.lds"
-        HINTS "${EFI_LIBRARY_DIR}" REQUIRED)
-    find_library(EFI_LIBRARY efi HINTS "${EFI_LIBRARY_DIR}" REQUIRED)
-    find_library(GNUEFI_LIBRARY gnuefi HINTS "${EFI_LIBRARY_DIR}" REQUIRED)
-    set(test_binary_format ON)
-    set(efi_startup "${EFI_CRT}")
-    set(efi_script "${EFI_LINKER_SCRIPT}")
-    set(efi_link_flags -shared --defsym=EFI_SUBSYSTEM=0x0a)
-    set(efi_libraries "${EFI_LIBRARY}" "${GNUEFI_LIBRARY}")
-    set(efi_sections -j .text -j .sdata -j .data -j .dynamic
-        -j .dynsym -j .rel -j .rela -j .reloc)
+    message(FATAL_ERROR "Unsupported EFI test architecture: ${EFI_ARCH}")
 endif()
 
+if(EFI_ARCH MATCHES "^(x86_64|aarch64|riscv64)$")
+    set(efi_pe_magic 0x20b)
+    set(efi_pe_optional_size 240)
+    set(efi_pe_characteristics 0x22)
+    set(efi_pe_image_base "QUAD(0)")
+    set(efi_pe_word QUAD)
+else()
+    set(efi_pe_magic 0x10b)
+    set(efi_pe_optional_size 224)
+    set(efi_pe_characteristics 0x102)
+    set(efi_pe_image_base "LONG(0) LONG(0)")
+    set(efi_pe_word LONG)
+endif()
+
+set(efi_script "${CMAKE_CURRENT_BINARY_DIR}/test-efi.lds")
+configure_file(test-efi.lds.in "${efi_script}" @ONLY)
+
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test.elf"
-    COMMAND "${CMAKE_LINKER}" ${efi_link_flags} -nostdlib -Bsymbolic
-        ${efi_startup} -T "${efi_script}" $<TARGET_OBJECTS:test_efi>
-        -o "${CMAKE_CURRENT_BINARY_DIR}/test.elf" ${efi_libraries}
-    DEPENDS test_efi $<TARGET_OBJECTS:test_efi> ${efi_startup} "${efi_script}"
-        ${efi_libraries}
+    COMMAND "${CMAKE_LINKER}" -nostdlib -Bsymbolic
+        -T "${efi_script}" $<TARGET_OBJECTS:test_efi>
+        -o "${CMAKE_CURRENT_BINARY_DIR}/test.elf"
+    DEPENDS test_efi $<TARGET_OBJECTS:test_efi> "${efi_script}"
     VERBATIM)
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test.pecoff"
-    COMMAND "${CMAKE_OBJCOPY}" ${efi_sections} -O binary
+    COMMAND "${CMAKE_OBJCOPY}" -j .header -j .text -j .reloc -O binary
         "${CMAKE_CURRENT_BINARY_DIR}/test.elf" "${CMAKE_CURRENT_BINARY_DIR}/test.pecoff"
     DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/test.elf"
     VERBATIM)
@@ -104,7 +94,7 @@ set(shell_tests sign-verify sign-verify-detached sign-detach-verify
     verify-missing-image verify-missing-cert sign-invalidattach-verify
     resign-warning reattach-warning)
 
-if(NOT test_binary_format)
+if(EFI_ARCH MATCHES "^(x86_64|ia32)$")
     list(APPEND shell_tests cert-table-header detach-remove)
 endif()
 
