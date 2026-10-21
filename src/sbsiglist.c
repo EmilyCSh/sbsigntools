@@ -29,8 +29,8 @@
  * this exception statement from all source files in the program, then
  * also delete it here.
  */
-#define _GNU_SOURCE
 
+#include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -171,9 +171,19 @@ static struct cert_type *parse_type(const char *str)
 {
 	unsigned int i;
 
-	for (i = 0; i < sizeof(cert_types) / sizeof(cert_types[0]); i++)
-		if (!strcasecmp(cert_types[i].name, str))
+	for (i = 0; i < sizeof(cert_types) / sizeof(cert_types[0]); i++) {
+		const char *name = cert_types[i].name;
+		size_t offset;
+
+		for (offset = 0; name[offset] && str[offset]; offset++)
+			if (tolower((unsigned char)name[offset]) !=
+					tolower((unsigned char)str[offset])) {
+				break;
+			}
+
+		if (!name[offset] && !str[offset])
 			return &cert_types[i];
+	}
 
 	return NULL;
 }

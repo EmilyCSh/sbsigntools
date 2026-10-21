@@ -29,7 +29,6 @@
  * this exception statement from all source files in the program, then
  * also delete it here.
  */
-#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>

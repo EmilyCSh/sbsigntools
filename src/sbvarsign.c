@@ -29,7 +29,6 @@
  * this exception statement from all source files in the program, then
  * also delete it here.
  */
-#define _GNU_SOURCE
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -134,6 +133,7 @@ static uint32_t parse_attrs(const char *attrs_str)
 	uint32_t attr, attrs_val;
 	const char *attr_str;
 	char *str;
+	size_t len;
 
 	/* we always need E_V_T_B_A_W_A */
 	attrs_val = EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
@@ -141,7 +141,14 @@ static uint32_t parse_attrs(const char *attrs_str)
 	if (!attrs_str[0])
 		return attrs_val;
 
-	str = strdup(attrs_str);
+	len = strlen(attrs_str) + 1;
+	str = malloc(len);
+	if (!str) {
+		perror("allocating attribute string");
+		return attr_invalid;
+	}
+
+	memcpy(str, attrs_str, len);
 
 	for (attr_str = strtok(str, ","); attr_str;
 			attr_str = strtok(NULL, ",")) {
@@ -150,12 +157,14 @@ static uint32_t parse_attrs(const char *attrs_str)
 		if (attr == attr_invalid) {
 			fprintf(stderr, "Invalid attribute string %s\n",
 					attr_str);
+			free(str);
 			return attr_invalid;
 		}
 
 		attrs_val |= attr;
 	}
 
+	free(str);
 	return attrs_val;
 }
 
