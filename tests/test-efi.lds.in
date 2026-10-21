@@ -1,0 +1,72 @@
+ENTRY(efi_main)
+
+SECTIONS
+{
+    .header 0 : {
+        SHORT(0x5a4d)
+        . = 0x3c;
+        LONG(0x40)
+        LONG(0x4550)
+        SHORT(@efi_pe_machine@)
+        SHORT(2)
+        LONG(0) LONG(0) LONG(0)
+        SHORT(@efi_pe_optional_size@)
+        SHORT(@efi_pe_characteristics@)
+
+        SHORT(@efi_pe_magic@)
+        BYTE(0) BYTE(0)
+        LONG(SIZEOF(.text))
+        LONG(SIZEOF(.reloc))
+        LONG(0)
+        LONG(efi_main)
+        LONG(ADDR(.text))
+        @efi_pe_image_base@
+        LONG(0x1000) LONG(0x200)
+        SHORT(0) SHORT(0)
+        SHORT(0) SHORT(0)
+        SHORT(0) SHORT(0)
+        LONG(0)
+        LONG(ALIGN(ADDR(.reloc) + SIZEOF(.reloc), 0x1000))
+        LONG(0x200)
+        LONG(0)
+        SHORT(10) SHORT(0)
+        @efi_pe_word@(0x100000) @efi_pe_word@(0x1000)
+        @efi_pe_word@(0x100000) @efi_pe_word@(0x1000)
+        LONG(0) LONG(16)
+        QUAD(0) QUAD(0) QUAD(0) QUAD(0) QUAD(0)
+        LONG(ADDR(.reloc)) LONG(12)
+        QUAD(0) QUAD(0) QUAD(0) QUAD(0) QUAD(0)
+        QUAD(0) QUAD(0) QUAD(0) QUAD(0) QUAD(0)
+
+        BYTE(0x2e) BYTE(0x74) BYTE(0x65) BYTE(0x78)
+        BYTE(0x74) BYTE(0) BYTE(0) BYTE(0)
+        LONG(SIZEOF(.text)) LONG(ADDR(.text))
+        LONG(SIZEOF(.text)) LONG(LOADADDR(.text))
+        LONG(0) LONG(0) SHORT(0) SHORT(0)
+        LONG(0xe0000060)
+
+        BYTE(0x2e) BYTE(0x72) BYTE(0x65) BYTE(0x6c)
+        BYTE(0x6f) BYTE(0x63) BYTE(0) BYTE(0)
+        LONG(12) LONG(ADDR(.reloc))
+        LONG(SIZEOF(.reloc)) LONG(LOADADDR(.reloc))
+        LONG(0) LONG(0) SHORT(0) SHORT(0)
+        LONG(0x42000040)
+        . = 0x200;
+    }
+
+    .text 0x1000 : AT(0x200) {
+        *(.text .text.*)
+        *(.rodata .rodata.*)
+        *(.data .data.*)
+        *(.bss .bss.* COMMON)
+        . = ALIGN(0x200);
+    }
+
+    .reloc ALIGN(0x1000) : AT(0x200 + SIZEOF(.text)) {
+        LONG(ADDR(.text)) LONG(12)
+        SHORT(0) SHORT(0)
+        . = ALIGN(0x200);
+    }
+
+    /DISCARD/ : { *(.comment .note* .eh_frame* .llvm_addrsig) }
+}
