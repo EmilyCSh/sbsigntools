@@ -1,6 +1,7 @@
 sbsigntool - utilities for signing UEFI binaries for use with secure boot.
 
 (c) 2012 by Jeremy Kerr, Canonical Ltd. <jeremy.kerr@canonical.com>
+(c) 2026 by Emily <info@emy.sh>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License as

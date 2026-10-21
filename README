@@ -1,6 +1,7 @@
 sbsigntool - Signing utility for UEFI secure boot
 
   Copyright (C) 2102 Jeremy Kerr <jeremy.kerr@canonical.com>
+  Copyright (C) Emily <info@emy.sh>
 
   Copying and distribution of this file, with or without modification,
   are permitted in any medium without royalty provided the copyright
@@ -31,22 +32,5 @@ To build and run the tests:
 
 CTest generates fresh test certificates before running the shell tests.
 Installation is not required to run the tests.
-
-Original development was done at:
-  git://kernel.ubuntu.com/jk/sbsigntool.git
-
-The current maintained fork resides at:
-
-  https://git.kernel.org/pub/scm/linux/kernel/git/jejb/sbsigntools.git/
-
-And a very low volume mailing list for bugs and patches is setup at
-
- sbsigntools@groups.io
-
-Thanks to groups.io policies, non-members can post to this list, but
-non-member postings are moderated until released (so they won't show
-up immediately).  The list archives are available:
-
- https://groups.io/g/sbsigntools/topics
 
 sbsigntool is free software.  See the file COPYING for copying conditions.

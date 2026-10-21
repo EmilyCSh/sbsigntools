@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2012 Jeremy Kerr <jeremy.kerr@canonical.com>
+ * Copyright (C) Emily <info@emy.sh>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License

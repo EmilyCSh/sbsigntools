@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(sbsigntools VERSION 0.9.5 LANGUAGES C)
+project(sbsigntools VERSION 0.9.6 LANGUAGES C)
 
 include(GNUInstallDirs)
 option(BUILD_TESTING "Build and enable tests" OFF)
