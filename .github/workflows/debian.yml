@@ -1,0 +1,77 @@
+name: Debian Testing
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Debian Testing (${{ matrix.arch }}, ${{ matrix.compiler }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        arch: [x86_64, aarch64, x86_32, arm32, riscv64]
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            platform: linux/amd64
+            entrypoint: env
+            qemu: false
+          - arch: aarch64
+            runner: ubuntu-26.04-arm
+            platform: linux/arm64
+            entrypoint: env
+            qemu: false
+          - arch: x86_32
+            runner: ubuntu-latest
+            platform: linux/386
+            entrypoint: linux32
+            qemu: true
+          - arch: arm32
+            runner: ubuntu-latest
+            platform: linux/arm/v7
+            entrypoint: env
+            qemu: true
+          - arch: riscv64
+            runner: ubuntu-latest
+            platform: linux/riscv64
+            entrypoint: env
+            qemu: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set Up QEMU
+        if: matrix.qemu
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: 386,arm,riscv64
+
+      - name: Configure, Build and Test
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ENTRYPOINT: ${{ matrix.entrypoint }}
+          CC: ${{ matrix.compiler }}
+        run: |
+          docker run --rm --platform "$PLATFORM" --entrypoint "$ENTRYPOINT" \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -e CC \
+            -e DEBIAN_FRONTEND=noninteractive \
+            debian:testing bash -euxo pipefail -c '
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                bash binutils bsdextrautils build-essential ca-certificates clang cmake \
+                coreutils diffutils grep help2man libssl-dev lld ninja-build \
+                openssl pkg-config uuid-dev
+              cmake -S /src -B /build -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON
+              cmake --build /build
+              ctest --test-dir /build --output-on-failure --no-tests=error
+            '

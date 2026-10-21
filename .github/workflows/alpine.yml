@@ -12,48 +12,63 @@ jobs:
   build-and-test:
     name: Alpine Edge (${{ matrix.arch }}, ${{ matrix.compiler }})
     runs-on: ${{ matrix.runner }}
-    container: alpine:edge
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         compiler: [gcc, clang]
-        arch: [x86_64, aarch64]
+        arch: [x86_64, aarch64, x86_32, arm32, riscv64]
         include:
           - arch: x86_64
             runner: ubuntu-latest
+            platform: linux/amd64
+            entrypoint: env
+            qemu: false
           - arch: aarch64
             runner: ubuntu-26.04-arm
+            platform: linux/arm64
+            entrypoint: env
+            qemu: false
+          - arch: x86_32
+            runner: ubuntu-latest
+            platform: linux/386
+            entrypoint: linux32
+            qemu: true
+          - arch: arm32
+            runner: ubuntu-latest
+            platform: linux/arm/v7
+            entrypoint: env
+            qemu: true
+          - arch: riscv64
+            runner: ubuntu-latest
+            platform: linux/riscv64
+            entrypoint: env
+            qemu: true
 
     steps:
-      - name: Install Dependencies
-        run: |
-          apk add --no-cache \
-            bash build-base ca-certificates clang cmake coreutils diffutils git \
-            grep help2man lld ninja openssl openssl-dev pkgconf util-linux util-linux-dev
+      - uses: actions/checkout@v4
 
-      - name: Checkout
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
-          printf '::add-mask::%s\n' "$auth"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git init .
-          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
-          git -c "http.extraheader=AUTHORIZATION: basic $auth" \
-            fetch --no-tags --depth=1 origin "$GITHUB_SHA"
-          git checkout --detach FETCH_HEAD
+      - name: Set Up QEMU
+        if: matrix.qemu
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: 386,arm,riscv64
 
-      - name: Configure
+      - name: Configure, Build and Test
         env:
+          PLATFORM: ${{ matrix.platform }}
+          ENTRYPOINT: ${{ matrix.entrypoint }}
           CC: ${{ matrix.compiler }}
         run: |
-          cmake -S . -B build-ci -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON
-
-      - name: Build
-        run: cmake --build build-ci
-
-      - name: Test
-        run: ctest --test-dir build-ci --output-on-failure --no-tests=error
+          docker run --rm --platform "$PLATFORM" --entrypoint "$ENTRYPOINT" \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -e CC \
+            alpine:edge sh -euxc '
+              apk add --no-cache \
+                bash build-base ca-certificates clang cmake coreutils diffutils \
+                grep help2man lld ninja openssl openssl-dev pkgconf util-linux util-linux-dev
+              cmake -S /src -B /build -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON
+              cmake --build /build
+              ctest --test-dir /build --output-on-failure --no-tests=error
+            '
