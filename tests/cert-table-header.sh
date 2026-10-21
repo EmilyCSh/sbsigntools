@@ -1,12 +1,5 @@
 #!/bin/bash -e
 
-# Parse the data directory of a PE/COFF file and returns two hex values:
-# the file offset and size of the signature table.
-function sigtable_params() {
-	filename="$1"
-	objdump -p "$filename" | awk '/^Entry 4/ {print "0x"$3 " " "0x"$4}'
-}
-
 # Extract the signature from a file containing a signature table,
 # and write to stdout
 function extract_sig() {

@@ -8,7 +8,9 @@ cp "$signed" "$unsigned"
 "$sbattach" --remove "$unsigned"
 
 # ensure that there is no security directory
-objdump -p $unsigned | grep -q '0\+ 0\+ Security Directory'
+params=($(sigtable_params "$unsigned"))
+[ "${params[0]}" -eq 0 ]
+[ "${params[1]}" -eq 0 ]
 
 ##
 # somewhat tricky: i386 pecoff binaries can be too short, so we add padding
