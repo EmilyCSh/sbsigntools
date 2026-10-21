@@ -34,11 +34,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/statfs.h>
 #include <sys/types.h>
+#include <efivar.h>
 
 #include <getopt.h>
 
@@ -50,10 +47,6 @@
 
 #include "fileio.h"
 #include "efivars.h"
-
-#define EFIVARS_MOUNTPOINT	"/sys/firmware/efi/efivars"
-#define PSTORE_FSTYPE		UINT32_C(0x6165676c)
-#define EFIVARS_FSTYPE		UINT32_C(0xde5e81e4)
 
 #define EFI_IMAGE_SECURITY_DATABASE_GUID \
 	{ 0xd719b2cb, 0x3d3a, 0x4596, \
@@ -139,7 +132,6 @@ struct fs_keystore {
 };
 
 struct sync_context {
-	const char		*efivars_dir;
 	struct keyset		*filesystem_keys;
 	struct keyset		*firmware_keys;
 	struct fs_keystore	*fs_keystore;
@@ -345,40 +337,23 @@ static int read_firmware_keydb(struct sync_context *ctx,
 		struct key_database *kdb)
 {
 	struct keydb_add_ctx add_ctx;
-	char guid_str[GUID_STRLEN];
-	char *filename;
-	uint8_t *buf;
-	int rc = -1;
+	efi_guid_t guid;
+	uint32_t attrs;
+	uint8_t *buf = NULL;
+	int rc;
 	size_t len;
 
 	add_ctx.keyset = ctx->firmware_keys;
 	add_ctx.kdb = kdb;
 	add_ctx.ke = NULL;
 
-	guid_to_str(&kdb->type->guid, guid_str);
-
-	filename = mem_asprintf(ctx->firmware_keys, "%s/%s-%s",
-			ctx->efivars_dir, kdb->type->name, guid_str);
-
-	buf = NULL;
-	rc = fileio_read_file_noerror(ctx->firmware_keys, filename, &buf, &len);
-	if (rc)
-		goto out;
-
-	/* efivars files start with a 32-bit attribute block */
-	if (len < sizeof(uint32_t))
-		goto out;
-
-	buf += sizeof(uint32_t);
-	len -= sizeof(uint32_t);
-
-	rc = 0;
-	sigdb_iterate(buf, len, keydb_add_key, &add_ctx);
-
-out:
-	if (rc)
-		mem_free(buf);
-	mem_free(filename);
+	memcpy(&guid, &kdb->type->guid, sizeof(guid));
+	rc = efi_get_variable(guid, kdb->type->name, &buf, &len, &attrs);
+	
+	if (!rc) {
+		rc = sigdb_iterate(buf, len, keydb_add_key, &add_ctx);
+	}
+	free(buf);
 
 	return rc;
 }
@@ -517,23 +492,6 @@ static void print_keyset(struct keyset *keyset, const char *name)
 						key->keystore_entry->name);
 		}
 	}
-}
-
-static int check_efivars_mount(const char *mountpoint)
-{
-	struct statfs statbuf;
-	int rc;
-
-	rc = statfs(mountpoint, &statbuf);
-	if (rc)
-		return -1;
-
-	if ((uint32_t) statbuf.f_type != EFIVARS_FSTYPE &&
-			(uint32_t) statbuf.f_type != PSTORE_FSTYPE) {
-		return -1;
-	}
-
-	return 0;
 }
 
 static int keystore_entry_read(struct fs_keystore_entry *ke)
@@ -715,59 +673,25 @@ static void print_new_keys(struct sync_context *ctx)
 
 static int insert_key(struct sync_context *ctx, struct fs_keystore_entry *ke)
 {
-	char guid_str[GUID_STRLEN];
-	char *efivars_filename;
-	unsigned int buf_len;
-	uint8_t *buf;
-	int fd, rc;
-
-	fd = -1;
-	rc = -1;
+	efi_guid_t guid;
+	int rc;
 
 	if (ctx->verbose)
 		printf("Inserting key update %s/%s into %s\n",
 				ke->root, ke->name, ke->type->name);
 
-	/* we create a contiguous buffer of attributes & key data, so that
-	 * we write to the efivars file in a single syscall */
-	buf_len = sizeof(sigdb_attrs) + ke->len;
-	buf = mem_alloc_size(ke, buf_len);
-	memcpy(buf, &sigdb_attrs, sizeof(sigdb_attrs));
-	memcpy(buf + sizeof(sigdb_attrs), ke->data, ke->len);
-
-	guid_to_str(&ke->type->guid, guid_str);
-
-	efivars_filename = mem_asprintf(ke, "%s/%s-%s", ctx->efivars_dir,
-						ke->type->name, guid_str);
-
-	fd = open(efivars_filename, O_WRONLY | O_CREAT, 0600);
-	if (fd < 0) {
-		fprintf(stderr,	"Can't create key file %s: %s\n",
-				efivars_filename, strerror(errno));
-		goto out;
-	}
-
-	rc = write(fd, buf, buf_len);
-	if (rc <= 0) {
+	memcpy(&guid, &ke->type->guid, sizeof(guid));
+#ifdef EFIVAR_SET_VARIABLE_HAS_MODE
+	rc = efi_set_variable(guid, ke->type->name, ke->data, ke->len,
+			sigdb_attrs, 0600);
+#else
+	rc = efi_set_variable(guid, ke->type->name, ke->data, ke->len,
+			sigdb_attrs);
+#endif
+	if (rc) {
 		fprintf(stderr, "Error writing key update: %s\n",
 				strerror(errno));
-		goto out;
 	}
-
-	if (rc != (int)buf_len) {
-		fprintf(stderr, "Partial write during key update: "
-				"wrote %d bytes, expecting %d\n",
-				rc, buf_len);
-		goto out;
-	}
-
-	rc = 0;
-
-out:
-	if (fd >= 0)
-		close(fd);
-	mem_free(efivars_filename);
-	mem_free(buf);
 	if (rc)
 		fprintf(stderr, "Error syncing keystore file %s/%s\n",
 				ke->root, ke->name);
@@ -836,7 +760,6 @@ static struct keyset *init_keyset(struct sync_context *ctx)
 static struct option options[] = {
 	{ "help", no_argument, NULL, 'h' },
 	{ "version", no_argument, NULL, 'V' },
-	{ "efivars-path", required_argument, NULL, 'e' },
 	{ "verbose", no_argument, NULL, 'v' },
 	{ "dry-run", no_argument, NULL, 'n' },
 	{ "pk", no_argument, NULL, 'p' },
@@ -851,8 +774,6 @@ static void usage(void)
 		"Update EFI key databases from the filesystem\n"
 		"\n"
 		"Options:\n"
-		"\t--efivars-path <dir>  Path to efivars mountpoint\n"
-		"\t                       (or regular directory for testing)\n"
 		"\t--verbose             Print verbose progress information\n"
 		"\t--dry-run             Don't update firmware key databases\n"
 		"\t--pk                  Set PK\n"
@@ -891,14 +812,11 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		int idx, c;
-		c = getopt_long(argc, argv, "e:dpkvhV", options, &idx);
+		c = getopt_long(argc, argv, "dpk:nvhV", options, &idx);
 		if (c == -1)
 			break;
 
 		switch (c) {
-		case 'e':
-			ctx->efivars_dir = optarg;
-			break;
 		case 'd':
 			use_default_keystore_dirs = false;
 			break;
@@ -920,6 +838,9 @@ int main(int argc, char **argv)
 		case 'h':
 			usage();
 			return EXIT_SUCCESS;
+		default:
+			mem_free(ctx);
+			return EXIT_FAILURE;
 		}
 	}
 
@@ -945,13 +866,10 @@ int main(int argc, char **argv)
 	ctx->filesystem_keys = init_keyset(ctx);
 	ctx->firmware_keys = init_keyset(ctx);
 
-	if (!ctx->efivars_dir) {
-		ctx->efivars_dir = EFIVARS_MOUNTPOINT;
-		if (check_efivars_mount(ctx->efivars_dir)) {
-			fprintf(stderr, "Can't access efivars filesystem "
-					"at %s, aborting\n", ctx->efivars_dir);
-			return EXIT_FAILURE;
-		}
+	if (!efi_variables_supported()) {
+		fprintf(stderr, "EFI variables are not supported, aborting\n");
+		mem_free(ctx);
+		return EXIT_FAILURE;
 	}
 
 	if (use_default_keystore_dirs) {

@@ -65,10 +65,11 @@ jobs:
             -e CC \
             alpine:edge sh -euxc '
               apk add --no-cache \
-                bash build-base ca-certificates clang cmake coreutils diffutils \
+                bash build-base ca-certificates clang cmake coreutils diffutils efivar-dev \
                 grep help2man lld ninja openssl openssl-dev pkgconf util-linux util-linux-dev
               cmake -S /src -B /build -G Ninja \
-                -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON
+                -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON \
+                -DREQUIRE_SBKEYSYNC=ON
               cmake --build /build
               ctest --test-dir /build --output-on-failure --no-tests=error
             '

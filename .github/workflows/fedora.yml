@@ -29,7 +29,7 @@ jobs:
       - name: Install Dependencies
         run: |
           dnf install -y \
-            bash ca-certificates clang cmake coreutils diffutils gawk gcc \
+            bash ca-certificates clang cmake coreutils diffutils efivar-devel gawk gcc \
             git grep help2man libuuid-devel lld make ninja-build openssl \
             openssl-devel openssl-devel-engine pkgconf-pkg-config sed util-linux
 
@@ -51,7 +51,8 @@ jobs:
           CC: ${{ matrix.compiler }}
         run: |
           cmake -S . -B build-ci -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON \
+            -DREQUIRE_SBKEYSYNC=ON
 
       - name: Build
         run: cmake --build build-ci

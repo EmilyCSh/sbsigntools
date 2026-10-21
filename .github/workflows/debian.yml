@@ -68,10 +68,11 @@ jobs:
               apt-get update
               apt-get install -y --no-install-recommends \
                 bash binutils bsdextrautils build-essential ca-certificates clang cmake \
-                coreutils diffutils grep help2man libssl-dev lld ninja-build \
+                coreutils diffutils grep help2man libefivar-dev libssl-dev lld ninja-build \
                 openssl pkg-config uuid-dev
               cmake -S /src -B /build -G Ninja \
-                -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON
+                -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON \
+                -DREQUIRE_SBKEYSYNC=ON
               cmake --build /build
               ctest --test-dir /build --output-on-failure --no-tests=error
             '

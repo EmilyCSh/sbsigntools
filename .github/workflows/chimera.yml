@@ -28,7 +28,7 @@ jobs:
       - name: Install Dependencies
         run: |
           apk add --no-cache \
-            base-devel bash ca-certificates clang cmake git help2man \
+            base-devel bash ca-certificates clang cmake efivar-devel git help2man \
             llvm ninja openssl openssl-devel pkgconf util-linux-uuid-devel
 
       - name: Checkout
@@ -48,7 +48,7 @@ jobs:
         run: |
           cmake -S . -B build-ci -G Ninja \
             -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON
+            -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON -DREQUIRE_SBKEYSYNC=ON
 
       - name: Build
         run: cmake --build build-ci
