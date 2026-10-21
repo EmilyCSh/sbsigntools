@@ -32,7 +32,34 @@
 #ifndef EFI_VARAUTH_H
 #define EFI_VARAUTH_H
 
-#include <efi/efi.h>
+#include <stdint.h>
+
+typedef uint16_t CHAR16;
+
+typedef struct {
+	uint32_t Data1;
+	uint16_t Data2;
+	uint16_t Data3;
+	uint8_t Data4[8];
+} EFI_GUID;
+
+typedef struct {
+	uint16_t Year;
+	uint8_t Month;
+	uint8_t Day;
+	uint8_t Hour;
+	uint8_t Minute;
+	uint8_t Second;
+	uint8_t Pad1;
+	uint32_t Nanosecond;
+	int16_t TimeZone;
+	uint8_t Daylight;
+	uint8_t Pad2;
+} EFI_TIME;
+
+#define EFI_GLOBAL_VARIABLE \
+	{ 0x8be4df61, 0x93ca, 0x11d2, \
+	{ 0xaa, 0x0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c } }
 
 #define EFI_CERT_TYPE_PKCS7_GUID \
 	{ 0x4aafd29d, 0x68df, 0x49ee, \
@@ -72,9 +99,9 @@
 #endif
 
 typedef struct {
-	UINT32		dwLength;
-	UINT16		wRevision;
-	UINT16		wCertificateType;
+	uint32_t	dwLength;
+	uint16_t	wRevision;
+	uint16_t	wCertificateType;
 } WIN_CERTIFICATE;
 
 typedef struct {
@@ -85,20 +112,20 @@ typedef struct {
 typedef struct {
 	EFI_TIME			TimeStamp;
 	WIN_CERTIFICATE_UEFI_GUID	AuthInfo;
-	UINT8				CertData[];
+	uint8_t				CertData[];
 } EFI_VARIABLE_AUTHENTICATION_2;
 
 
 typedef struct {
 	EFI_GUID	SignatureOwner;
-	UINT8		SignatureData[];
+	uint8_t		SignatureData[];
 } EFI_SIGNATURE_DATA;
 
 typedef struct {
 	EFI_GUID	SignatureType;
-	UINT32		SignatureListSize;
-	UINT32		SignatureHeaderSize;
-	UINT32		SignatureSize;
+	uint32_t	SignatureListSize;
+	uint32_t	SignatureHeaderSize;
+	uint32_t	SignatureSize;
 } EFI_SIGNATURE_LIST;
 
 #endif /* EFI_VARAUTH_H */

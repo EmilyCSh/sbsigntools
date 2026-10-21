@@ -1,10 +1,11 @@
-#include <efi.h>
-#include <efilib.h>
+#include <stdint.h>
 
-EFI_STATUS EFIAPI
-efi_main (EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
+#if defined(__x86_64__)
+__attribute__((ms_abi))
+#endif
+uintptr_t efi_main(void *image, void *systab)
 {
 	(void)image;
 	(void)systab;
-	return EFI_SUCCESS;
+	return 0;
 }

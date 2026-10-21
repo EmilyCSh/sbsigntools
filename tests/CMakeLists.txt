@@ -1,13 +1,11 @@
 find_program(BASH_EXECUTABLE bash REQUIRED)
 
 add_library(test_efi OBJECT test.c)
-target_include_directories(test_efi SYSTEM PRIVATE "${EFI_INCLUDE_DIR}/efi" "${EFI_ARCH_INCLUDE_DIR}")
-target_compile_options(test_efi PRIVATE -fshort-wchar -fno-stack-protector -fno-pic -fno-pie
+target_compile_options(test_efi PRIVATE -fno-stack-protector -fno-pic -fno-pie
     -ffreestanding -fno-asynchronous-unwind-tables -fno-unwind-tables)
 
 if(EFI_ARCH STREQUAL "x86_64")
     set(efi_pe_machine 0x8664)
-    target_compile_definitions(test_efi PRIVATE GNU_EFI_USE_MS_ABI)
     target_compile_options(test_efi PRIVATE -mno-red-zone)
 elseif(EFI_ARCH STREQUAL "ia32")
     set(efi_pe_machine 0x14c)

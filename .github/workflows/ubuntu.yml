@@ -32,9 +32,9 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            bash bsdextrautils build-essential ca-certificates clang \
-            cmake coreutils diffutils git gnu-efigrep help2man libssl-dev \
-            lld ninja-build openssl pkg-config uuid-dev
+            bash bsdextrautils build-essential ca-certificates clang cmake \
+            coreutils diffutils git grep help2man libssl-dev lld ninja-build \
+            openssl pkg-config uuid-dev
 
       - name: Checkout
         env:

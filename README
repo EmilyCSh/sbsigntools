@@ -6,10 +6,9 @@ sbsigntool - Signing utility for UEFI secure boot
   are permitted in any medium without royalty provided the copyright
   notice and this notice are preserved.
 
-Building requires CMake 3.20 or newer, a C compiler, OpenSSL, libuuid,
-and GNU-EFI headers.
-Manual pages require help2man. Tests additionally require the GNU-EFI
-libraries and startup files, the openssl command, bash, objdump, and hexdump.
+Building requires CMake 3.20 or newer, a C compiler, OpenSSL, libuuid.
+Manual pages require help2man. Tests additionally require the the openssl 
+command, bash, objdump, and hexdump.
 
 Configure and build out of tree, then install:
 

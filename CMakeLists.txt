@@ -16,16 +16,12 @@ find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(UUID REQUIRED IMPORTED_TARGET uuid)
 
-set(EFI_ARCH "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "GNU-EFI architecture")
+set(EFI_ARCH "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "UEFI test architecture")
 if(EFI_ARCH MATCHES "^i.86$")
     set(EFI_ARCH ia32)
 elseif(EFI_ARCH MATCHES "^arm")
     set(EFI_ARCH arm)
 endif()
-
-find_path(EFI_INCLUDE_DIR efi/efi.h REQUIRED)
-find_path(EFI_ARCH_INCLUDE_DIR efibind.h
-    HINTS "${EFI_INCLUDE_DIR}/efi/${EFI_ARCH}" REQUIRED)
 
 add_library(sbcommon STATIC src/idc.c src/image.c src/fileio.c src/util.c)
 target_compile_definitions(sbcommon PUBLIC
@@ -49,9 +45,6 @@ foreach(tool IN LISTS SBSIGNTOOLS)
 endforeach()
 
 foreach(tool sbvarsign sbsiglist sbkeysync)
-    target_include_directories(${tool} PRIVATE "${EFI_INCLUDE_DIR}"
-        "${EFI_INCLUDE_DIR}/efi" "${EFI_ARCH_INCLUDE_DIR}")
-    target_compile_definitions(${tool} PRIVATE EFI_FUNCTION_WRAPPER)
     target_link_libraries(${tool} PRIVATE PkgConfig::UUID)
 endforeach()
 
