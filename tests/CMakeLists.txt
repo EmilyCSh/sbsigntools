@@ -1,26 +1,35 @@
 find_program(BASH_EXECUTABLE bash REQUIRED)
 
+set(test_arch "${CMAKE_SYSTEM_PROCESSOR}")
+if(test_arch STREQUAL "amd64")
+    set(test_arch x86_64)
+elseif(test_arch MATCHES "^i.86$")
+    set(test_arch ia32)
+elseif(test_arch MATCHES "^arm")
+    set(test_arch arm)
+endif()
+
 add_library(test_efi OBJECT test.c)
 target_compile_options(test_efi PRIVATE -fno-stack-protector -fno-pic -fno-pie
     -ffreestanding -fno-asynchronous-unwind-tables -fno-unwind-tables)
 
-if(EFI_ARCH STREQUAL "x86_64")
+if(test_arch STREQUAL "x86_64")
     set(efi_pe_machine 0x8664)
     target_compile_options(test_efi PRIVATE -mno-red-zone)
-elseif(EFI_ARCH STREQUAL "ia32")
+elseif(test_arch STREQUAL "ia32")
     set(efi_pe_machine 0x14c)
-elseif(EFI_ARCH STREQUAL "arm")
+elseif(test_arch STREQUAL "arm")
     set(efi_pe_machine 0x1c2)
     target_compile_options(test_efi PRIVATE -mthumb)
-elseif(EFI_ARCH STREQUAL "aarch64")
+elseif(test_arch STREQUAL "aarch64")
     set(efi_pe_machine 0xaa64)
-elseif(EFI_ARCH STREQUAL "riscv64")
+elseif(test_arch STREQUAL "riscv64")
     set(efi_pe_machine 0x5064)
 else()
-    message(FATAL_ERROR "Unsupported EFI test architecture: ${EFI_ARCH}")
+    message(FATAL_ERROR "Unsupported EFI test architecture: ${test_arch}")
 endif()
 
-if(EFI_ARCH MATCHES "^(x86_64|aarch64|riscv64)$")
+if(test_arch MATCHES "^(x86_64|aarch64|riscv64)$")
     set(efi_pe_magic 0x20b)
     set(efi_pe_optional_size 240)
     set(efi_pe_characteristics 0x22)
@@ -92,7 +101,7 @@ set(shell_tests sign-verify sign-verify-detached sign-detach-verify
     verify-missing-image verify-missing-cert sign-invalidattach-verify
     resign-warning reattach-warning)
 
-if(EFI_ARCH MATCHES "^(x86_64|ia32)$")
+if(test_arch MATCHES "^(x86_64|ia32)$")
     list(APPEND shell_tests cert-table-header detach-remove)
 endif()
 
@@ -102,6 +111,6 @@ foreach(test IN LISTS shell_tests)
         "${CMAKE_CURRENT_SOURCE_DIR}/test-wrapper.sh" "${test}.sh")
     set_tests_properties("${test}" PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-        ENVIRONMENT "srcdir=${CMAKE_CURRENT_SOURCE_DIR};TEST_ARCHES=${EFI_ARCH}"
+        ENVIRONMENT "srcdir=${CMAKE_CURRENT_SOURCE_DIR}"
         FIXTURES_REQUIRED certificates)
 endforeach()

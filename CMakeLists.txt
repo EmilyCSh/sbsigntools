@@ -16,13 +16,6 @@ find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(UUID REQUIRED IMPORTED_TARGET uuid)
 
-set(EFI_ARCH "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "UEFI test architecture")
-if(EFI_ARCH MATCHES "^i.86$")
-    set(EFI_ARCH ia32)
-elseif(EFI_ARCH MATCHES "^arm")
-    set(EFI_ARCH arm)
-endif()
-
 add_library(sbcommon STATIC src/idc.c src/image.c src/fileio.c src/util.c)
 target_compile_definitions(sbcommon PUBLIC
     PACKAGE="sbsigntool"

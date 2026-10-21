@@ -23,34 +23,22 @@ export basedir datadir bindir sbsign sbverify sbattach key cert intkey intcert c
 test="$PWD/$1"
 rc=0
 
-function run_test()
-{
-	test="$1"
+image="$datadir/test.pecoff"
+export image
 
-	# image depends on the test arch
-	image="$datadir/test.pecoff"
-	export image
+# create the temporary directory...
+tempdir=$(mktemp -d "${TMPDIR:-/tmp}/sbsigntools.XXXXXXXXXX")
 
-	# create the temporary directory...
-	tempdir=$(mktemp -d "${TMPDIR:-/tmp}/sbsigntools.XXXXXXXXXX")
+# ... and run the test in it.
+( cd "$tempdir" && "$BASH" -e "$test" )
 
-	# ... and run the test in it.
-	( cd "$tempdir" && "$BASH" -e "$test" )
+if [ $? -ne 0 ]
+then
+	echo "test $(basename $test) failed"
+	echo
+	rc=1
+fi
 
-	if [ $? -ne 0 ]
-	then
-		echo "test $(basename $test) failed on arch $arch"
-		echo
-		rc=1
-	fi
-
-	rm -rf "$tempdir"
-}
-
-# run test on all available arches
-for arch in $TEST_ARCHES
-do
-	run_test $test
-done
+rm -rf "$tempdir"
 
 exit $rc

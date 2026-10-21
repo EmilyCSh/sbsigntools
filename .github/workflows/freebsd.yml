@@ -30,7 +30,6 @@ jobs:
             set -eu
             cmake -S . -B build-ci -G Ninja \
               -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release \
-              -DEFI_ARCH=x86_64 \
               -DBUILD_TESTING=ON -DBUILD_MAN_PAGES=ON
             cmake --build build-ci
             ctest --test-dir build-ci --output-on-failure --no-tests=error
